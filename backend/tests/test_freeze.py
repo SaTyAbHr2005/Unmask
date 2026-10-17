@@ -30,6 +30,12 @@ def test_money_still_held_is_predicted_to_follow_the_same_pattern():
     assert round(ex[("X", False)].share, 3) == 0.5 and ex[("X", False)].eta_s is not None
 
 
+def test_a_crumb_of_cash_out_is_not_extrapolated():
+    G = build_graph([T("1", 1, "0xs", "0xa", 999), T("2", 2, "0xs", "0xb", 1), T("3", 100, "0xb", "0xx", 1)])
+    ex = predict_exits(G, {"0xs"}, LABELS, total_usd=1000)
+    assert [(e.exchange, e.arrived) for e in ex] == [("X", True)]   # 0.1% arrived; the rest: no guess
+
+
 def test_no_exit_yet_falls_back_to_busiest_exchange():
     G = build_graph([T("1", 1, "0xs", "0xa", 10), T("2", 2, "0xn1", "0xz", 999), T("3", 3, "0xn2", "0xy", 5)])
     ex = predict_exits(G, {"0xs"}, LABELS, total_usd=100)

@@ -54,6 +54,16 @@ export function useCase() {
         await refresh();
         setNote("");
       }),
+    loadReplay: (id: string) =>
+      guard("loading", async () => {
+        setNote("Pulling the real transactions from Etherscan. The first load of a case can take a few minutes; after that it's cached.");
+        const r = await api.replay(id);
+        setNote(`Loaded ${r.transfers.toLocaleString()} real transfers. Running the analysis.`);
+        setEngine("reasoning");
+        await api.run();
+        await refresh();
+        setNote("");
+      }),
     collectOsint: () =>
       guard("searching", async () => {
         const r = await api.collectOsint();

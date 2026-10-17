@@ -9,7 +9,7 @@ import httpx
 
 from gt.chain.labels import load_labels
 from gt.chain.normalize import norm_addr, to_utc
-from gt.config import DATA_DIR, env
+from gt.config import DATA_DIR, env, usd
 from gt.schema import Transfer
 
 URL = "https://api.etherscan.io/v2/api"
@@ -67,14 +67,22 @@ def _chain(chainid: int) -> str:
     return CHAINS.get(chainid, str(chainid))
 
 
-def _account(action: str, address: str, chainid: int) -> list[dict]:
-    return get({"module": "account", "action": action, "address": address, "startblock": 0,
-                "endblock": 99999999, "page": 1, "offset": 1000, "sort": "asc"}, chainid)
+ALL_BLOCKS = (0, 99999999)
 
 
-def txlist(address: str, chainid: int = 1) -> list[Transfer]:
+def _account(action: str, address: str, chainid: int, blocks: tuple[int, int]) -> list[dict]:
+    return get({"module": "account", "action": action, "address": address, "startblock": blocks[0],
+                "endblock": blocks[1], "page": 1, "offset": 1000, "sort": "asc"}, chainid)
+
+
+def block_at(ts: int, chainid: int = 1) -> int | None:
+    b = get({"module": "block", "action": "getblocknobytime", "timestamp": ts, "closest": "before"}, chainid)
+    return int(b) if isinstance(b, str) and b.isdigit() else None
+
+
+def txlist(address: str, chainid: int = 1, blocks: tuple[int, int] = ALL_BLOCKS) -> list[Transfer]:
     out = []
-    for r in _account("txlist", address, chainid):
+    for r in _account("txlist", address, chainid, blocks):
         if r.get("isError") == "1":
             continue
         deploy = not r.get("to") and r.get("contractAddress")
@@ -85,12 +93,12 @@ def txlist(address: str, chainid: int = 1) -> list[Transfer]:
     return out
 
 
-def tokentx(address: str, chainid: int = 1) -> list[Transfer]:
+def tokentx(address: str, chainid: int = 1, blocks: tuple[int, int] = ALL_BLOCKS) -> list[Transfer]:
     return [Transfer(f"{norm_addr(r['hash'])}:{r.get('logIndex', '0')}", _chain(chainid), to_utc(r["timeStamp"]),
                      norm_addr(r["from"]), norm_addr(r["to"]), r.get("tokenSymbol") or "TOKEN",
                      int(r["value"]) / 10 ** int(r.get("tokenDecimal") or 18),
                      int(r.get("gasPrice") or 0) / 1e9, int(r.get("nonce") or -1))
-            for r in _account("tokentx", address, chainid)]
+            for r in _account("tokentx", address, chainid, blocks)]
 
 
 def get_code(address: str, chainid: int = 1) -> str:
@@ -99,20 +107,30 @@ def get_code(address: str, chainid: int = 1) -> str:
 
 
 def load_replay(path: str, max_transfers: int = 3000) -> tuple[list[Transfer], dict[str, str]]:
-    """BFS forward along the money from the seed addresses; labeled hubs (exchanges, mixers…) are not expanded."""
+    """BFS forward along the money from the seed addresses; labeled hubs (exchanges, mixers…) are not expanded.
+    `window: [start, end]` (ISO dates) limits every lookup to the incident; without it busy wallets drag in years
+    of unrelated history. Tokens with no known price are dropped: on hacker wallets they are spam airdrops."""
     cfg = json.loads(Path(path).read_text())
     labels = load_labels()
+    chainids = cfg.get("chainids", [1])
+    window = [to_utc(d) for d in cfg.get("window", [])]
+    blocks = {c: (block_at(window[0], c) or 0, block_at(window[1], c) or ALL_BLOCKS[1]) if window else ALL_BLOCKS
+              for c in chainids}
     seen: dict[str, Transfer] = {}
     frontier = [norm_addr(a) for a in cfg["seed_addresses"]]
     expanded: set[str] = set()
     for _ in range(cfg.get("hops", 2) + 1):
         nxt = []
         for addr in frontier:
+            if len(seen) >= max_transfers:   # full: stop paying for API calls whose rows would be dropped
+                break
             if addr in expanded or addr in labels:
                 continue
             expanded.add(addr)
-            for chainid in cfg.get("chainids", [1]):
-                for t in txlist(addr, chainid) + tokentx(addr, chainid):
+            for chainid in chainids:
+                for t in txlist(addr, chainid, blocks[chainid]) + tokentx(addr, chainid, blocks[chainid]):
+                    if usd(t.asset, t.amount) is None:
+                        continue
                     if len(seen) >= max_transfers:
                         break
                     seen.setdefault(t.tx_hash, t)

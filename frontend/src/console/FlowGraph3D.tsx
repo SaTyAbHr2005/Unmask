@@ -88,7 +88,8 @@ export default function FlowGraph3D({ graph, onPick }: { graph: Graph; onPick: (
         onNodeClick={(n: N) => onPick(n.id)}
       />
       <ul className="graph-legend" aria-label="Legend">
-        {(["attacker", "exchange", "mixer", "bridge", "victim", "decoy"] as Kind[]).map((k) => (
+        {(["attacker", "exchange", "mixer", "bridge", "dex", "victim", "decoy", "contract"] as Kind[])
+          .filter((k) => graph.nodes.some((n) => n.kind === k)).map((k) => (
           <li key={k}><i style={{ background: KIND_COLOR[k] }} />{KIND_NAME[k]}</li>
         ))}
         <li><i className="particle" />Money moving</li>

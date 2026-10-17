@@ -31,6 +31,12 @@ export default function Console() {
   const [version, setVersion] = useState(0);
   const [polished, setPolished] = useState<Link[] | null>(null);
   const [mempool, setMempool] = useState<{ available: boolean; pending: number } | null>(null);
+  const [replays, setReplays] = useState<{ id: string; name: string; source: string }[]>([]);
+  const [replay, setReplay] = useState("");
+
+  useEffect(() => {
+    api.replays().then((r) => { setReplays(r); setReplay((cur) => cur || r[0]?.id || ""); }).catch(() => setReplays([]));
+  }, []);
 
   // charts refetch whenever the case data changes
   useEffect(() => { if (c.data) { setVersion((v) => v + 1); setPolished(null); } }, [c.data]);
@@ -63,6 +69,17 @@ export default function Console() {
               <input type="number" min={0} max={999999} value={seed} onChange={(e) => setSeed(Number(e.target.value) || 0)} aria-label="Simulated attack number" />
             </label>
             <button className="btn btn-primary" disabled={busy} onClick={() => c.loadSimulation(seed)}>Load simulated attack</button>
+            {replays.length > 0 && (
+              <>
+                <label className="seed">
+                  Real hack
+                  <select value={replay} onChange={(e) => setReplay(e.target.value)} aria-label="Real past hack">
+                    {replays.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </label>
+                <button className="btn" disabled={busy || !replay} onClick={() => c.loadReplay(replay)}>Load real hack</button>
+              </>
+            )}
             <button className="btn" disabled={busy || !d} onClick={c.collectOsint}>Collect public posts</button>
             <button className="btn" disabled={busy || !d} onClick={c.rerun}>Run analysis again</button>
           </div>
@@ -80,6 +97,12 @@ export default function Console() {
             decoys, and an attacker who can't stop posting. It takes about a second.
           </p>
           <button className="btn btn-primary" disabled={busy} onClick={() => c.loadSimulation(seed)}>Load simulated attack</button>
+          {replays.length > 0 && (
+            <p>
+              Or trace a real one: pick a past hack under <b>Real hack</b> above. Its transactions come straight from the
+              blockchain, with no answer key and no names attached.
+            </p>
+          )}
         </section>
       ) : (
         <>

@@ -76,6 +76,9 @@ def _dwell_s(G: nx.MultiDiGraph, nodes: set[str]) -> int | None:
     return int(statistics.median(waits)) if waits else None
 
 
+MIN_PATTERN_SHARE = 0.05   # cash-outs seen so far must cover ≥5% of the money before we extrapolate from them
+
+
 def predict_exits(G: nx.MultiDiGraph, sources: set[str], labels: dict[str, str], total_usd: float,
                   max_hops: int = 6) -> list[ExitPrediction]:
     """Push the stolen money forward through the graph (each wallet passes it on in proportion to what it sent);
@@ -116,7 +119,8 @@ def predict_exits(G: nx.MultiDiGraph, sources: set[str], labels: dict[str, str],
     rows = [ExitPrediction(exch[a], a, s, s * total_usd, None, True) for a, s in absorbed.items() if s > 1e-9]
     pattern = dict(absorbed) or {a: sum(_edge_value(d) for *_, d in G.in_edges(a, data=True)) for a in exch if a in G}
     norm = sum(pattern.values())
-    if stuck > 1e-9 and norm > 0:
+    # a pattern needs evidence: on Euler 2023 one $60K deposit (0.04%) was extrapolated to all $170M
+    if stuck > 1e-9 and norm > 0 and (not absorbed or norm >= MIN_PATTERN_SHARE):
         eta = _dwell_s(G, visited)
         rows += [ExitPrediction(exch[a], a, stuck * w / norm, stuck * w / norm * total_usd, eta, False)
                  for a, w in pattern.items() if w > 0]

@@ -106,3 +106,14 @@ def test_newer_osint_does_not_age_the_case():
     r = run(conn)
     assert r.links[0].identity == "forum:ghostfox" and r.links[0].score >= 0.8
     assert r.metrics["handle_correct"]
+
+
+def test_third_party_contracts_leave_the_attacker_cluster():
+    from gt.pipeline import third_party_contracts
+    T = lambda h, a, b, amt, kind="transfer": Transfer(h, "eth", 1_000 + len(h), a, b, "ETH", amt, kind=kind)
+    txs = [T("1", "0xatk", "0xmine", 100.0, kind="deploy"),   # contract the attacker deployed: stays theirs
+           T("2", "0xatk", "0xhop", 50.0), T("3", "0xhop", "0xsafe", 40.0),  # a multisig someone else runs
+           T("4", "0xsafe", "0xstranger", 30.0)]                             # its other users must not join
+    contracts = {"0xmine", "0xsafe"}
+    hubs = third_party_contracts(txs, {"0xatk"}, {}, lambda a: a in contracts)
+    assert hubs == {"0xsafe": "contract"}

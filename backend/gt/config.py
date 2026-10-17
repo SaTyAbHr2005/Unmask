@@ -14,11 +14,12 @@ def env(name: str) -> str | None:
 
 ETH_USD = 3000.0
 STABLES = {"USDT", "USDC", "DAI"}
+ETH_LIKE = {"ETH", "WETH", "stETH", "wstETH"}   # ponytail: staked ETH priced as 1 ETH (wstETH is ~1.15); fine for triage
 
 
 def usd(asset: str, amount: float) -> float | None:
     """Fixed demo prices; None = unknown token price."""
-    if asset == "ETH":
+    if asset in ETH_LIKE:
         return amount * ETH_USD
     return amount if asset in STABLES else None
 

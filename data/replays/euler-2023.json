@@ -1,0 +1,11 @@
+{
+  "name": "Euler Finance exploit (13 March 2023, ~$197M)",
+  "source": "https://rekt.news/euler-rekt",
+  "seed_addresses": [
+    "0xb66cd966670d962c227b3eaba30a872dbfb995db",
+    "0xc66dfa84bc1b93df194bd964a41282da65d73c9a"
+  ],
+  "chainids": [1],
+  "window": ["2023-03-12", "2023-04-10"],
+  "hops": 2
+}

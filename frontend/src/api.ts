@@ -1,7 +1,7 @@
 // Typed client for the Unmask API (backend/gt/api.py). Shapes mirror the backend dataclasses.
 export const BASE: string = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 
-export type Kind = "attacker" | "exchange" | "mixer" | "bridge" | "dex" | "victim" | "decoy" | "wallet";
+export type Kind = "attacker" | "exchange" | "mixer" | "bridge" | "dex" | "victim" | "decoy" | "contract" | "wallet";
 
 export interface Signal { name: string; lr: number; detail: string }
 export interface Link {
@@ -80,6 +80,8 @@ const post = <T>(path: string, body?: unknown) => call<T>(path, { method: "POST"
 export const api = {
   health: () => call<{ ok: boolean; db: string }>("/health"),
   simulate: (seed = 7) => post<{ transfers: number; posts: number }>(`/simulate?seed=${seed}`),
+  replays: () => call<{ id: string; name: string; source: string }[]>("/replays"),
+  replay: (id: string) => post<{ transfers: number; posts: number }>(`/replay/${encodeURIComponent(id)}`),
   run: () => post<{ metrics: Metrics | null; links: number; alerts: number }>("/run"),
   collectOsint: () => post<{ rss: number; github: number; telegram: number; entities: number; total_posts: number }>("/osint/collect", {}),
   graph: (limit = 400) => call<Graph>(`/graph?cluster=0&limit=${limit}`),

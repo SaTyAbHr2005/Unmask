@@ -17,7 +17,7 @@ from pydantic import BaseModel, StringConstraints
 from gt import db
 from gt.analytics.behavior import infer_utc_offset
 from gt.analytics.features import activity_matrix, wallet_features
-from gt.chain.etherscan import load_replay
+from gt.chain.etherscan import CHAINS, get_code, load_replay
 from gt.chain.labels import load_labels
 from gt.chain.live import live_loop, pending_count
 from gt.chain.normalize import norm_addr
@@ -28,7 +28,7 @@ from gt.fusion import score
 from gt.osint.collectors import collect_github, collect_rss, collect_telegram
 from gt.osint.extract import extract
 from gt.osint.style import resolve_identities
-from gt.pipeline import load_case, load_results, load_scenario, run
+from gt.pipeline import load_case, load_results, load_scenario, run, third_party_contracts
 from gt.schema import Alert, Link, OsintPost, Transfer
 from gt.simulator import simulate
 
@@ -38,6 +38,7 @@ app.add_middleware(CORSMiddleware, allow_methods=["*"], allow_headers=["*"],
 router = APIRouter(prefix="/api")
 STATE: dict = {"conn": None, "live_task": None}
 LIVE_QUEUE: asyncio.Queue = asyncio.Queue()
+CHAIN_IDS = {v: k for k, v in CHAINS.items()}
 Analyst = Annotated[str, Header(alias="X-Analyst")]   # ponytail: self-declared name, no auth — add login before real use
 
 
@@ -81,6 +82,16 @@ def simulate_case(seed: Annotated[int, Query(ge=0, le=1_000_000)] = 7):
     return {"transfers": len(s.transfers), "posts": len(s.posts)}
 
 
+@router.get("/replays")
+def replay_list():
+    """Real past hacks available to load (data/replays/*.json)."""
+    out = []
+    for p in sorted((DATA_DIR / "replays").glob("*.json")):
+        cfg = json.loads(p.read_text())
+        out.append({"id": p.stem, "name": cfg.get("name", p.stem), "source": cfg.get("source", "")})
+    return out
+
+
 @router.post("/replay/{name}")
 def replay_case(name: str):
     if not re.fullmatch(r"[\w-]{1,64}", name):
@@ -90,9 +101,12 @@ def replay_case(name: str):
         raise HTTPException(404, f"no replay called {name}")
     cfg = json.loads(path.read_text())
     transfers, codes = load_replay(str(path))
-    load_case(conn(), transfers, [], load_labels(), codes, None, cfg.get("name", name),
-              [norm_addr(a) for a in cfg.get("seed_addresses", [])])
-    return {"transfers": len(transfers), "posts": 0}
+    seeds = {norm_addr(a) for a in cfg.get("seed_addresses", [])}
+    chain_of = {a: CHAIN_IDS.get(t.chain, 1) for t in transfers for a in (t.from_addr, t.to_addr)}
+    labels = load_labels()
+    hubs = third_party_contracts(transfers, seeds, labels, lambda a: len(get_code(a, chain_of.get(a, 1))) > 2)
+    load_case(conn(), transfers, [], {**labels, **hubs}, codes, None, cfg.get("name", name), sorted(seeds))
+    return {"transfers": len(transfers), "posts": 0, "third_party_contracts": len(hubs)}
 
 
 @router.post("/run")

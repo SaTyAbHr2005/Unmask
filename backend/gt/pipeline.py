@@ -76,6 +76,25 @@ def _default_seeds(transfers: list[Transfer], labels: dict[str, str]) -> set[str
     return {max(stolen, key=lambda t: usd(t.asset, t.amount) or 0).to_addr} if stolen else set()
 
 
+def third_party_contracts(transfers: list[Transfer], seeds: set[str], labels: dict[str, str],
+                          is_contract) -> dict[str, str]:
+    """Real chains only: stolen money also passes through other people's contracts (multisigs, pools, lending
+    markets). Any contract that lands in the attacker cluster but wasn't deployed by it becomes a 'contract' hub,
+    then we re-cluster until nothing changes. (Euler 2023: the victim's own recovery Safe was being flagged.)"""
+    deployed = {t.to_addr for t in transfers if t.kind == "deploy"}
+    G, funders = build_graph(transfers), gas_funders(transfers)
+    hubs: dict[str, str] = {}
+    checked = set(seeds) | deployed
+    while True:
+        cl = cluster_wallets(G, funders, seeds, {**labels, **hubs})
+        new = {w for w, k in cl.items() if k == ATTACKER} - checked
+        checked |= new
+        found = {w: "contract" for w in sorted(new) if is_contract(w)}
+        if not found:
+            return hubs
+        hubs |= found
+
+
 def _alerts(exits: list[ExitPrediction], held: list[Holding], transfers, labels) -> list[Alert]:
     out = prewarn(transfers, labels)
     for e in exits:
@@ -85,7 +104,7 @@ def _alerts(exits: list[ExitPrediction], held: list[Holding], transfers, labels)
             msg = (f"{e.share:.0%} of the stolen funds (${e.usd:,.0f}) is already deposited at {e.exchange} "
                    f"({e.address[:12]}…). Ask their compliance team to freeze the account.")
         else:
-            eta = f"~{e.eta_s / 3600:.0f}h" if e.eta_s else "soon"
+            eta = "soon" if not e.eta_s else f"~{e.eta_s / 3600:.0f}h" if e.eta_s >= 3600 else f"~{e.eta_s // 60:.0f} min"
             msg = (f"~{e.share:.0%} of the stolen funds (${e.usd:,.0f}) is expected to reach {e.exchange} in {eta}. "
                    f"Warn their compliance team now.")
         out.append(Alert(f"exit:{e.address}:{'arrived' if e.arrived else 'predicted'}", "exit", e.exchange, msg))

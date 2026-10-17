@@ -99,6 +99,8 @@ def test_report(client):
 def test_replay_name_is_validated(client):
     assert client.post("/api/replay/..%2F..%2Fsecrets").status_code in (400, 404)
     assert client.post("/api/replay/does_not_exist").status_code == 404
+    cases = client.get("/api/replays").json()
+    assert any(c["id"] == "euler-2023" and c["source"].startswith("https://") for c in cases)
 
 
 def test_live_requires_key_and_valid_addresses(client, monkeypatch):

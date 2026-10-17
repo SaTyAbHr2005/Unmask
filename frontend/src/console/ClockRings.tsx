@@ -11,6 +11,7 @@ export default function ClockRings({ identity, version }: { identity: string | n
   useEffect(() => {
     api.heatmap("cluster:0").then(setWallets).catch(() => setWallets(null));
     if (identity) api.heatmap(`identity:${identity}`).then(setPosts).catch(() => setPosts(null));
+    else setPosts(null);   // a case with no suspect must not keep the previous case's schedule
   }, [identity, version]);
 
   const size = 360, c = size / 2;   // room outside the rings for the hour labels

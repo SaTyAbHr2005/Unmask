@@ -71,13 +71,20 @@
   font-size: var(--t-s);
   color: var(--graphite-2);
 }
-.seed input {
-  width: 5.2rem;
+.seed input,
+.seed select {
   padding: 0.55em 0.5em;
   border: 1.5px solid var(--rule);
   background: var(--paper);
   font: inherit;
   color: var(--graphite);
+}
+.seed input {
+  width: 5.2rem;
+}
+.seed select {
+  max-width: 16rem;
+  min-width: 0;
 }
 .note {
   font-size: var(--t-s);

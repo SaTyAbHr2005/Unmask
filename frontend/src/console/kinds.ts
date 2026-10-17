@@ -8,6 +8,7 @@ export const KIND_COLOR: Record<Kind, string> = {
   dex: "#b9801f",
   victim: "#c2362b",
   decoy: "#b8b9b1",
+  contract: "#5d6b6e",
   wallet: "#8a8780",
 };
 
@@ -19,5 +20,6 @@ export const KIND_NAME: Record<Kind, string> = {
   dex: "Token swap",
   victim: "Victim protocol",
   decoy: "Decoy (planted)",
+  contract: "Someone else's contract",
   wallet: "Other wallet",
 };

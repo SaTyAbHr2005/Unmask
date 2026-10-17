@@ -8,7 +8,7 @@ Each module has its own detailed guide. Read them in order: each builds on the p
 |---|---|---|---|
 | M0 Foundation | ✅ done | Data shapes every module shares, plus MongoDB storage | [M0-foundation.md](M0-foundation.md) |
 | M1 Attack Simulator | ✅ done | A fake but realistic hack, with an answer key for measuring accuracy | [M1-attack-simulator.md](M1-attack-simulator.md) |
-| M2 Chain Ingestion | ✅ done (real replay file pending keys) | Brings in Etherscan replays and the Alchemy live stream, and cleans the data | [M2-chain-ingestion.md](M2-chain-ingestion.md) |
+| M2 Chain Ingestion | ✅ done | Brings in Etherscan replays and the Alchemy live stream, and cleans the data | [M2-chain-ingestion.md](M2-chain-ingestion.md) |
 | M3 OSINT Ingestion | ✅ done (Telegram optional) | Collects RSS, GitHub and Telegram text; extracts addresses and handles; links aliases into one identity | [M3-osint-ingestion.md](M3-osint-ingestion.md) |
 | M4 Analytics | ✅ done | The math: graph, clustering, gas funders, bridge matching, bot and time-zone detection, time-delta test, bytecode match | [M4-analytics.md](M4-analytics.md) |
 | M5 Fusion | ✅ done | Combines clues into a probability per wallet-to-identity link, with plain-English reasons, a hashed evidence store and a tamper-evident audit log | [M5-fusion.md](M5-fusion.md) |
@@ -16,7 +16,8 @@ Each module has its own detailed guide. Read them in order: each builds on the p
 | M7 Pipeline + API | ✅ done | One `run()` over every module (0.85 s) plus the FastAPI endpoints the dashboard uses | [M7-pipeline-api.md](M7-pipeline-api.md) |
 | M7.1 Integration pass | ✅ done | Connects 7 built-but-unused features (OSINT collection, mempool, wallet features, bot scores, matrix, subset-sum deposits) plus time-to-freeze and optional AI wording | [M7.1-integration.md](M7.1-integration.md) |
 | M8 Frontend | ✅ done | Scroll-driven 3D story, live case file (3D money graph, suspects, alerts, timeline, clock, routes, matrix), printable dossier with privacy masking | [M8-frontend.md](M8-frontend.md) |
-| M9 Demo + Deploy | ⏳ next | Real-hack replay, demo script, Render + Vercel deploy | — |
+| M8.1 Real data | ✅ done | All 9 services tested with real keys; the real Euler 2023 hack loads from the website; fixes for what real data exposed | [M8.1-real-data.md](M8.1-real-data.md) |
+| M9 Demo + Deploy | ⏳ next | Demo script, Render + Vercel deploy | — |
 
 ## Big picture
 

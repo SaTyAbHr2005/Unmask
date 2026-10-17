@@ -9,7 +9,7 @@ export default function MoneyLedger({ money }: { money: MoneyNow }) {
   return (
     <aside className="ledger" aria-labelledby="t-ledger">
       <h2 id="t-ledger" className="visually-hidden">Where the money is now</h2>
-      <p className="ledger-stolen"><span className="num">{usd(money.total_usd)}</span> stolen</p>
+      <p className="ledger-stolen"><span className="num">{usd(money.total_usd)}</span> {money.timing.theft_ts ? "stolen" : "traced through the attacker's wallets"}</p>
       <p className="ledger-freeze"><span className="num">{usd(money.frozen_possible_usd)}</span> can still be frozen</p>
       <div className="seg" role="img" aria-label={`${usd(money.at_exchanges_usd)} at exchanges, ${usd(issuer)} freezable by the stablecoin issuer, ${usd(unfreezable)} not freezable`}>
         <span className="fz-ex" style={{ flexGrow: money.at_exchanges_usd }} />

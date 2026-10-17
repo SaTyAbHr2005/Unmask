@@ -103,10 +103,10 @@ def test_tokentx_converts_rows(monkeypatch):
 
 
 def _fake_chain(monkeypatch, edges, labels=None):
-    def rows(addr, chainid=1):
+    def rows(addr, chainid=1, blocks=etherscan.ALL_BLOCKS):
         return [Transfer(f"0x{a}{b}", "eth", 1, a, b, "ETH", 1.0) for a, b in edges if addr in (a, b)]
     monkeypatch.setattr(etherscan, "txlist", rows)
-    monkeypatch.setattr(etherscan, "tokentx", lambda addr, chainid=1: [])
+    monkeypatch.setattr(etherscan, "tokentx", lambda addr, chainid=1, blocks=etherscan.ALL_BLOCKS: [])
     monkeypatch.setattr(etherscan, "get_code", lambda addr, chainid=1: "0x60")
     monkeypatch.setattr(etherscan, "load_labels", lambda: labels or {})
 
@@ -134,7 +134,24 @@ def test_replay_cap_and_bytecodes(tmp_path, monkeypatch):
     _fake_chain(monkeypatch, [("0xa", f"0x{i}") for i in range(50)])
     transfers, _ = etherscan.load_replay(_replay(tmp_path), max_transfers=10)
     assert len(transfers) == 10
+    calls = []
+    monkeypatch.setattr(etherscan, "tokentx", lambda addr, chainid=1, blocks=None: calls.append(addr) or [])
+    etherscan.load_replay(_replay(tmp_path), max_transfers=10)
+    assert calls == ["0xa"]   # the cap was hit on the seed: none of its 50 recipients is fetched
     monkeypatch.setattr(etherscan, "txlist",
-                        lambda a, chainid=1: [Transfer("0xd", "eth", 1, "0xa", "0xc", "ETH", 0.0, kind="deploy")])
+                        lambda a, chainid=1, blocks=None: [Transfer("0xd", "eth", 1, "0xa", "0xc", "ETH", 0.0, kind="deploy")])
     _, codes = etherscan.load_replay(_replay(tmp_path))
     assert codes == {"0xc": "0x60"}
+
+
+def test_replay_window_limits_blocks_and_drops_spam_tokens(tmp_path, monkeypatch):
+    _fake_chain(monkeypatch, [("0xa", "0xb")])
+    asked = []
+    monkeypatch.setattr(etherscan, "block_at", lambda ts, chainid=1: {1678665600: 100, 1682812800: 200}[ts])
+    monkeypatch.setattr(etherscan, "tokentx", lambda a, chainid=1, blocks=None: asked.append(blocks) or [
+        Transfer("0xspam", "eth", 1, "0xa", "0xs", "CASH", 9e9), Transfer("0xdai", "eth", 1, "0xa", "0xd", "DAI", 5.0)])
+    p = tmp_path / "w.json"
+    p.write_text(json.dumps({"seed_addresses": ["0xA"], "hops": 0, "window": ["2023-03-13", "2023-04-30"]}))
+    transfers, _ = etherscan.load_replay(str(p))
+    assert asked == [(100, 200)]                                 # Etherscan is asked only for the incident's blocks
+    assert {t.tx_hash for t in transfers} == {"0x0xa0xb", "0xdai"}   # unpriced airdrop dropped
