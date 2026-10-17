@@ -52,7 +52,7 @@ The hacker's own transactions all happen during **09:00–23:59 at UTC+9**, beca
 
 ## What one default run produces (seed 7)
 - 9,055 transfers: 8,450 transfer, 164 swap, 130 mixer_out, 129 mixer_in, 89 bridge_out, 89 bridge_in, 3 test_call, 1 deploy
-- 571 posts: 338 forum, 232 Telegram, 1 GitHub. Of these, 26 are by `ghostfox` and 6 by `fox_ghost`.
+- 572 posts: 350 forum, 221 Telegram, 1 GitHub. Of these, 26 are by `ghostfox` and 6 by `fox_ghost`. The 60 normal authors get clearly distinct usernames built from random syllables (e.g. `wongal`, `briyur`), so none of them looks like another or like the attacker.
 - 528 attacker wallets, 22 decoys
 - Runs in about 0.2 seconds
 

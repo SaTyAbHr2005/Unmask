@@ -4,13 +4,14 @@ Story: a mixer-funded wallet deploys an exploit, steals 14,000 ETH ($42M), a bot
 hundreds of gas-funded wallets, routes the pieces through a mixer / a bridge / a DEX, consolidates,
 and cashes out at two exchanges. The attacker chats on a forum minutes before acting.
 """
-import hashlib
 from dataclasses import dataclass
 
 import numpy as np
 from eth_hash.auto import keccak
 
 from gt.config import ETH_USD
+from gt.osint.extract import make_post
+from gt.osint.style import NAME_GATE, username_similarity
 from gt.schema import OsintPost, Transfer
 
 TOTAL_ETH = 42_000_000 / ETH_USD
@@ -31,7 +32,8 @@ NOISE_LINES = [
     "Interesting thread on MEV protection, worth reading.", "We have shipped v2 of the SDK. Feedback welcome!",
     "Could someone explain how the liquidation threshold works?", "Market looks sideways; I am mostly holding.",
 ]
-NOISE_WORDS = ["river", "maple", "quant", "delta", "cobalt", "lumen", "orbit", "pixel", "sable", "tundra", "vector", "willow"]
+SYLLABLES = ["ka", "lo", "mi", "zen", "tor", "vi", "ra", "ne", "dus", "pe", "qu", "bri", "sol", "am", "jet",
+             "won", "hex", "yur", "gal", "fen", "ok", "tuz", "bax", "ru", "sig", "dor", "ip", "wex", "cha", "mun"]
 
 
 @dataclass
@@ -91,8 +93,19 @@ class _Gen:
 
 
 def _post(source: str, author: str, ts: int, text: str, url: str = "") -> OsintPost:
-    pid = hashlib.sha1(f"{source}|{author}|{ts}|{text}".encode()).hexdigest()[:16]
-    return OsintPost(pid, source, author, int(ts), text, url)
+    return make_post(source, author, int(ts), text, url)
+
+
+def _noise_names(rng, n: int) -> list[str]:
+    """Distinct-looking usernames, like real strangers (no two resemble each other or the attacker's handles)."""
+    names: list[str] = []
+    for _ in range(20_000):
+        cand = "".join(rng.choice(SYLLABLES, size=int(rng.integers(2, 4))))
+        if all(username_similarity(cand, m) < NAME_GATE for m in names + list(HANDLES.values())):
+            names.append(cand)
+            if len(names) == n:
+                break
+    return names
 
 
 def simulate(seed: int = 7, n_split: int = 300, n_noise_wallets: int = 1500,
@@ -219,8 +232,7 @@ def simulate(seed: int = 7, n_split: int = 300, n_noise_wallets: int = 1500,
                        for s in EXPLOIT_FUNCS)
     posts.append(_post("github", HANDLES["github"], t0 - 3 * DAY,
                        f"// lol ez money fr\ncontract Flash {{\n{source}\n}}", "https://github.example/gh0stfox/flash-tools"))
-    for a in range(60):
-        name = f"{NOISE_WORDS[int(rng.integers(0, 12))]}_{NOISE_WORDS[int(rng.integers(0, 12))]}{a}"
+    for name in _noise_names(rng, 60):
         src = "forum" if rng.random() < 0.6 else "telegram"
         for ts in rng.uniform(t0 - DAY, t0 + 2 * DAY, size=int(rng.integers(3, 16))):
             posts.append(_post(src, name, int(ts), NOISE_LINES[int(rng.integers(0, len(NOISE_LINES)))]))

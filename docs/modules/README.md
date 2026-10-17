@@ -9,8 +9,8 @@ Each module has its own detailed guide. Read them in order: each builds on the p
 | M0 Foundation | ✅ done | Data shapes every module shares, plus MongoDB storage | [M0-foundation.md](M0-foundation.md) |
 | M1 Attack Simulator | ✅ done | A fake but realistic hack, with an answer key for measuring accuracy | [M1-attack-simulator.md](M1-attack-simulator.md) |
 | M2 Chain Ingestion | ✅ done (real replay file pending keys) | Brings in Etherscan replays and the Alchemy live stream, and cleans the data | [M2-chain-ingestion.md](M2-chain-ingestion.md) |
-| M3 OSINT Ingestion | ⏳ next | Collects forum, Telegram, GitHub and RSS text; extracts addresses and handles; links aliases | — |
-| M4 Analytics | ⏳ | The math: graph, clustering, gas funders, bridge matching, bot and time-zone detection, time-delta test | — |
+| M3 OSINT Ingestion | ✅ done (Telegram optional) | Collects RSS, GitHub and Telegram text; extracts addresses and handles; links aliases into one identity | [M3-osint-ingestion.md](M3-osint-ingestion.md) |
+| M4 Analytics | ⏳ next | The math: graph, clustering, gas funders, bridge matching, bot and time-zone detection, time-delta test | — |
 | M5 Fusion | ⏳ | Combines evidence into a probability per wallet-to-identity link, with explanations and an evidence chain | — |
 | M6 Defense | ⏳ | Exit prediction, freezability, pre-attack warning, decoy filter, human-approved alerts | — |
 | M7 Pipeline + API | ⏳ | One `run()` over everything, plus FastAPI endpoints | — |

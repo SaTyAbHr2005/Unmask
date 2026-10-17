@@ -16,3 +16,14 @@ ETH_USD = 3000.0
 PRIOR = 0.01
 HALF_LIFE_S = 6 * 3600
 DB_NAME = "unmask"
+
+# OSINT sources (feeds checked live 2026-10-17; drop any that stop answering)
+RSS_FEEDS = [
+    "https://rekt.news/rss/feed.xml",
+    "https://www.web3isgoinggreat.com/feed.xml",
+    "https://cointelegraph.com/rss/tag/hacks",
+    "https://slowmist.medium.com/feed",
+    "https://www.chainalysis.com/blog/feed/",
+]
+GITHUB_QUERIES = ["flashloan exploit", "drain pool exploit"]   # add the attacker's address prefix during a case
+TELEGRAM_CHANNELS: list[str] = []                               # public channel usernames, filled per case
