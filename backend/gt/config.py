@@ -13,6 +13,14 @@ def env(name: str) -> str | None:
 
 
 ETH_USD = 3000.0
+STABLES = {"USDT", "USDC", "DAI"}
+
+
+def usd(asset: str, amount: float) -> float | None:
+    """Fixed demo prices; None = unknown token price."""
+    if asset == "ETH":
+        return amount * ETH_USD
+    return amount if asset in STABLES else None
 PRIOR = 0.01
 HALF_LIFE_S = 6 * 3600
 DB_NAME = "unmask"
