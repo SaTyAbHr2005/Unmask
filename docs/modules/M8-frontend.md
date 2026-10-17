@@ -51,7 +51,7 @@ Seven chapters that follow the problem statement, driven by scroll:
 | Panel | What you see and do |
 |---|---|
 | **Engine bar** | Load a simulated attack (any number), collect public posts (RSS + GitHub), run the analysis again. The **Thinking Orb** (halftone engraving style) shows what the engine is doing: idle, working, searching or reasoning. |
-| **3D money flow** ([FlowGraph3D.tsx](../../frontend/src/console/FlowGraph3D.tsx)) | The attacker's wallets (purple) around mixer/bridge hubs and exchange exits (green), with **amber particles moving along the money edges**. Drag to turn, Ctrl + scroll to zoom, click a wallet to open it. |
+| **3D money flow** ([FlowGraph3D.tsx](../../frontend/src/console/FlowGraph3D.tsx)) | The attacker's wallets (purple) around mixer/bridge hubs and exchange exits (green), with **amber particles moving along the money edges**. Drag to turn; zoom with Ctrl + scroll (or a touchpad pinch) or the **+ / −** buttons; **Re-centre** brings the whole cluster back. Click a wallet to open it. |
 | **Money now** | Stolen, **can still be frozen**, at exchanges, freezable by the issuer, nobody can freeze, still in the mixer; the freeze window; exits marked arrived or "in ~10.8 h" |
 | **Suspects** | Each identity with a confidence bar and label; the top name decrypts; open one for the plain-English reasons and clue strengths; **Confirm** / **Reject** (written to the audit chain); optional plain-language AI summaries |
 | **Alerts** | Pending alerts on raised cards; **Approve and send** asks for a second confirmation ("Send now" / "Keep waiting"); Dismiss |
@@ -97,6 +97,8 @@ The 3D graph library loads only on the case file; the story's 3D code only on th
 | 3D graph: the layout never ran, then the camera sat inside the cluster | The layout is now computed up front (static, cheaper), and the camera is framed on the **drawn** node meshes. The library's own "zoom to fit" reads a copy of the positions that never gets the layout. |
 | React StrictMode broke the graph's camera in development | StrictMode removed (it only affects development builds) |
 | Scrolling over the graph zoomed it instead of the page | Plain wheel scrolls the page; Ctrl/⌘ + wheel zooms |
+| Ctrl + scroll barely zoomed (~3% per notch, then a long glide) | The wheel is handled by Unmask, not the trackball: ~15% per mouse notch, smooth for touchpad pinch, and the browser's page zoom is blocked over the graph |
+| The graph could end up empty: a right-drag panned the cluster away, or a new case was framed before its layout existed | Pan is off; the camera is fitted when the layout finishes (not on a timer); **+ / − / Re-centre** buttons |
 | The timeline was squashed by one post from 3 days earlier | The axis follows the attacker's activity ±2 h and mentions posts outside it |
 | The matrix skipped quiet hours, so time looked continuous when it wasn't | The API fills empty hours; a test guards it |
 | The route diagram showed a $0 "Direct" route and clipped labels | Crumb routes (< 0.1% of the theft) are dropped (tested); more label room |

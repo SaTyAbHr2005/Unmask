@@ -156,6 +156,25 @@
   height: 5px;
   margin: 0 2px;
 }
+.graph-tools {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  display: flex;
+  gap: 6px;
+}
+.graph-tools .btn {
+  min-width: 2.4rem;
+  padding: 0.45em 0.8em;
+  background: color-mix(in srgb, var(--lift) 92%, transparent);
+}
+.graph-tools .btn:hover {
+  background: var(--graphite);
+}
+.graph-legend,
+.graph-hint {
+  pointer-events: none;   /* a wheel over the overlay must still reach the graph, not page-zoom the browser */
+}
 .graph-hint {
   position: absolute;
   right: 14px;
