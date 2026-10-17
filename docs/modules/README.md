@@ -12,8 +12,8 @@ Each module has its own detailed guide. Read them in order: each builds on the p
 | M3 OSINT Ingestion | ✅ done (Telegram optional) | Collects RSS, GitHub and Telegram text; extracts addresses and handles; links aliases into one identity | [M3-osint-ingestion.md](M3-osint-ingestion.md) |
 | M4 Analytics | ✅ done | The math: graph, clustering, gas funders, bridge matching, bot and time-zone detection, time-delta test, bytecode match | [M4-analytics.md](M4-analytics.md) |
 | M5 Fusion | ✅ done | Combines clues into a probability per wallet-to-identity link, with plain-English reasons, a hashed evidence store and a tamper-evident audit log | [M5-fusion.md](M5-fusion.md) |
-| M6 Defense | ⏳ next | Exit prediction, freezability, pre-attack warning, decoy filter, human-approved alerts | — |
-| M7 Pipeline + API | ⏳ | One `run()` over everything, plus FastAPI endpoints | — |
+| M6 Defense | ✅ done | Where the money is and who can freeze it, exit prediction, pre-attack warning, decoy filter, human-approved alerts | [M6-defense.md](M6-defense.md) |
+| M7 Pipeline + API | ⏳ next | One `run()` over everything, plus FastAPI endpoints | — |
 | M8 Frontend | ⏳ | Dashboard, investigation page, printable report | — |
 | M9 Demo + Deploy | ⏳ | Real-hack replay, demo script, Render + Vercel deploy | — |
 

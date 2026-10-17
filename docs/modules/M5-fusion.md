@@ -89,7 +89,7 @@ Stores any transfer, post, signal or dict as **canonical JSON** (keys sorted) un
 `Link.evidence` holds these hashes, so every claim points to exact, verifiable data.
 
 ### `audit(conn, actor, action, target)` → `AuditEntry`
-Records every human decision: `confirm_link`, `reject_link`, `approve_alert`, `send_alert`, `export_report`. Each entry contains the **ID of the previous entry**, and its own ID is a hash of (previous ID + actor + action + target + time). That forms a **hash chain**, the same idea a blockchain uses.
+Records every human decision: `confirm_link`, `reject_link`, `approve_alert`, `send_alert`, `dismiss_alert`, `export_report`. Each entry contains the **ID of the previous entry**, and its own ID is a hash of (previous ID + actor + action + target + time). That forms a **hash chain**, the same idea a blockchain uses.
 
 ### `verify_audit(conn)` → True/False
 Recomputes the chain from the newest entry back to the first. It returns **False** if:
