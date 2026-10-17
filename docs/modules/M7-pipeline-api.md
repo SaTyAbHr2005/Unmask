@@ -153,5 +153,8 @@ Full suite: **159 tests**.
 - The live poller runs only while the server is awake (Render's free tier sleeps after 15 minutes idle).
 - The dashboard has no login (see Safety details above).
 
+## More endpoints
+OSINT collection, mempool, wallet detail, activity matrix, time-to-freeze and AI wording were added in [M7.1-integration.md](M7.1-integration.md).
+
 ## What M8 uses from M7
 Every endpoint above. The dashboard's base URL comes from `VITE_API_URL` (default `http://localhost:8000/api`).

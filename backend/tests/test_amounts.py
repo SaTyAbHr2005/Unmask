@@ -56,3 +56,21 @@ def test_bridge_links_raise_cluster_recall():
     c = cluster_wallets(G, gas_funders(s.transfers), {sorted(s.truth.attacker_wallets)[0]}, s.labels)
     r = evaluate({w for w, k in c.items() if k == 0}, None, s.truth)
     assert r["precision"] >= 0.95 and r["recall"] >= 0.95
+
+
+def test_deposit_composition_full_sweep_subset_and_unmatched():
+    from gt.analytics.amounts import deposit_composition
+    L = {"0xex": "exchange:X"}
+    t = lambda h, ts, f, to, a: Transfer(h, "eth", ts, f, to, "ETH", a)
+    sweep = [t("a", 1, "0x1", "0xw", 3.0), t("b", 2, "0x2", "0xw", 4.0), t("d", 9, "0xw", "0xex", 7.0)]
+    subset = [t("a", 1, "0x1", "0xw", 3.0), t("b", 2, "0x2", "0xw", 4.0), t("c", 3, "0x3", "0xw", 50.0),
+              t("d", 9, "0xw", "0xex", 7.0)]
+    nomatch = [t("a", 1, "0x1", "0xw", 3.0), t("d", 9, "0xw", "0xex", 7.0)]
+    [s] = deposit_composition(sweep, {"0xw"}, L)
+    assert (s["method"], sorted(s["pieces"]), s["exchange"]) == ("full sweep", ["a", "b"], "X")
+    [p] = deposit_composition(subset, {"0xw"}, L)
+    assert (p["method"], sorted(p["pieces"]), p["n_pieces"]) == ("subset-sum", ["a", "b"], 2)
+    [n] = deposit_composition(nomatch, {"0xw"}, L)
+    assert n["method"] == "unmatched" and n["pieces"] == []
+    late = sweep + [t("z", 20, "0x9", "0xw", 1.0)]                 # arrives after the deposit: not part of it
+    assert sorted(deposit_composition(late, {"0xw"}, L)[0]["pieces"]) == ["a", "b"]

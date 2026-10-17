@@ -2,6 +2,7 @@
 on the other chain minus a small fee, a few minutes later."""
 import bisect
 
+from gt.config import usd
 from gt.schema import Transfer
 
 
@@ -57,4 +58,30 @@ def match_bridges(outs: list[Transfer], ins: list[Transfer], fee_max: float = 0.
         used_o.add(oh)
         used_i.add(ih)
         out.append((oh, ih, 1 - fee / fee_max * 0.5 - gap / window_s[1] * 0.5))
+    return out
+
+
+def deposit_composition(transfers: list[Transfer], wallets: set[str], labels: dict[str, str],
+                        tol: float = 0.005) -> list[dict]:
+    """For every deposit from a cluster wallet into an exchange: which incoming pieces make it up?
+    'full sweep' = everything the wallet received so far (the usual consolidation move);
+    'subset-sum' = a specific combination of incoming pieces; 'unmatched' = no combination fits."""
+    inflows: dict[str, list[Transfer]] = {}
+    for t in transfers:
+        if t.to_addr in wallets and t.amount > 0:
+            inflows.setdefault(t.to_addr, []).append(t)
+    out = []
+    for d in sorted(transfers, key=lambda t: t.ts):
+        label = labels.get(d.to_addr, "")
+        if d.from_addr not in wallets or not label.startswith("exchange:") or d.amount <= 0:
+            continue
+        before = [x for x in inflows.get(d.from_addr, []) if x.asset == d.asset and x.ts <= d.ts]
+        if before and abs(sum(x.amount for x in before) - d.amount) <= tol * d.amount:
+            pieces, method = [x.tx_hash for x in before], "full sweep"
+        else:
+            found = match_split(d.amount, [(x.tx_hash, x.amount) for x in before], tol)
+            pieces, method = (found, "subset-sum") if found else ([], "unmatched")
+        out.append({"deposit_tx": d.tx_hash, "wallet": d.from_addr, "exchange": label.split(":", 1)[1],
+                    "asset": d.asset, "amount": d.amount, "usd": usd(d.asset, d.amount) or 0.0,
+                    "pieces": pieces, "n_pieces": len(pieces), "method": method, "ts": d.ts})
     return out

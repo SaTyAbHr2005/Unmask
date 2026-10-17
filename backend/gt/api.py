@@ -16,14 +16,17 @@ from pydantic import BaseModel, StringConstraints
 
 from gt import db
 from gt.analytics.behavior import infer_utc_offset
+from gt.analytics.features import activity_matrix, wallet_features
 from gt.chain.etherscan import load_replay
 from gt.chain.labels import load_labels
-from gt.chain.live import live_loop
+from gt.chain.live import live_loop, pending_count
 from gt.chain.normalize import norm_addr
-from gt.config import DATA_DIR, env, usd
+from gt.config import DATA_DIR, GITHUB_QUERIES, RSS_FEEDS, TELEGRAM_CHANNELS, env, usd
 from gt.defense import alerts
 from gt.fusion.evidence import audit, head, verify_audit
-from gt.fusion.score import explain, label
+from gt.fusion import score
+from gt.osint.collectors import collect_github, collect_rss, collect_telegram
+from gt.osint.extract import extract
 from gt.osint.style import resolve_identities
 from gt.pipeline import load_case, load_results, load_scenario, run
 from gt.schema import Alert, Link, OsintPost, Transfer
@@ -142,7 +145,7 @@ def graph(cluster: int = 0, limit: Annotated[int, Query(ge=1, le=5000)] = 600):
             e["ts"] = min(e["ts"], ts)
     return {"nodes": [{"id": a, "label": labels.get(a, "").removeprefix("exchange:") or _short(a),
                        "cluster": clusters.get(a), "kind": _kind(a, clusters.get(a), labels, decoys),
-                       "usd": volume[a]} for a in nodes],
+                       "usd": volume[a], "bot_score": res.get("bot_scores", {}).get(a)} for a in nodes],
             "edges": list(edges.values())}
 
 
@@ -220,7 +223,7 @@ def money_now():
     res = _results()
     if not res:
         return {"total_usd": 0, "frozen_possible_usd": 0, "at_exchanges_usd": 0, "in_mixers_usd": 0,
-                "unspent_usd": 0, "exits": []}
+                "unspent_usd": 0, "exits": [], "timing": {}}
     members, hs = _members(0), res["holdings"]
     mixed = sum((_value(t) if t.from_addr in members and t.kind == "mixer_in" else 0)
                 - (_value(t) if t.to_addr in members and t.kind == "mixer_out" else 0)
@@ -230,18 +233,22 @@ def money_now():
             "at_exchanges_usd": sum(h["usd"] for h in hs if h["freezer"].startswith("exchange:")),
             "in_mixers_usd": max(mixed, 0.0),
             "unspent_usd": sum(h["usd"] for h in hs if not h["freezer"].startswith("exchange:")),
-            "exits": res["exits"]}
+            "exits": res["exits"], "timing": res.get("timing", {})}
 
 
 # ── analyst decisions ───────────────────────────────────────────────────────────────────────────────
 
-def _link_view(l: Link) -> dict:
-    return {**dataclasses.asdict(l), "label": label(l.score, l.status), "explanation": explain(l)}
+POLISH_TOP = 3   # AI wording costs one call per link: only the top few
+
+
+def _link_view(l: Link, polish: bool = False) -> dict:
+    return {**dataclasses.asdict(l), "label": score.label(l.score, l.status), "explanation": score.explain(l, polish)}
 
 
 @router.get("/links")
-def links():
-    return [_link_view(l) for l in sorted(db.select(conn(), Link), key=lambda l: -l.score)]
+def links(polish: bool = False):
+    ls = sorted(db.select(conn(), Link), key=lambda l: -l.score)
+    return [_link_view(l, polish and i < POLISH_TOP) for i, l in enumerate(ls)]
 
 
 @router.post("/links/{link_id}/{action}")
@@ -300,7 +307,7 @@ def freeze_request(to: str, holdings: list[dict], links: list[Link], case: str =
     return "\n".join(lines)
 
 
-def _report() -> dict:
+def _report(polish: bool = False) -> dict:
     res, c = _results(), conn()
     ls = sorted(db.select(c, Link), key=lambda l: -l.score)
     by_freezer: dict[str, list[dict]] = defaultdict(list)
@@ -309,21 +316,99 @@ def _report() -> dict:
             by_freezer[h["freezer"].removeprefix("exchange:")].append(h)
     case, stolen = res.get("case", ""), res.get("stolen_usd", 0)
     return {"case": case, "generated_ts": int(time.time()), "stolen_usd": stolen, "metrics": res.get("metrics"),
-            "links": [_link_view(l) for l in ls[:5]], "exits": res.get("exits", []), "holdings": res.get("holdings", []),
+            "links": [_link_view(l, polish and i < POLISH_TOP) for i, l in enumerate(ls[:5])],
+            "exits": res.get("exits", []), "holdings": res.get("holdings", []), "timing": res.get("timing", {}),
+            "deposits": [d for d in res.get("deposits", []) if d["n_pieces"] >= 2],
             "freeze_requests": [{"to": to, "text": freeze_request(to, hs, ls, case, stolen)} for to, hs in by_freezer.items()],
             "audit_ok": verify_audit(c), "audit_head": head(c), "audit_entries": c.auditentry.count_documents({}),
             "evidence_count": c.evidence.count_documents({})}
 
 
 @router.get("/report")
-def report():
-    return _report()
+def report(polish: bool = False):
+    return _report(polish)
 
 
 @router.post("/report/export")
 def export_report(actor: Analyst = "analyst"):
     audit(conn(), actor, "export_report", _results().get("case", ""))
     return _report()
+
+
+# ── OSINT collection, wallet detail, matrix, mempool ────────────────────────────────────────────────
+
+class OsintCollect(BaseModel):
+    rss: bool = True
+    github_queries: list[str] | None = None
+    telegram_channels: list[str] | None = None
+    search_case_addresses: bool = True
+
+
+@router.post("/osint/collect")
+async def osint_collect(body: OsintCollect):
+    """Pull public text into the current case (then POST /run to rescore). Never fails on a dead source."""
+    queries = list(body.github_queries or GITHUB_QUERIES)
+    if body.search_case_addresses:
+        queries += _results().get("seeds", [])[:3]   # does anyone mention the attacker's wallet?
+    rss = await asyncio.to_thread(collect_rss, RSS_FEEDS) if body.rss else []
+    gh = await asyncio.to_thread(collect_github, queries)
+    tg = await collect_telegram(body.telegram_channels or TELEGRAM_CHANNELS)
+    posts = rss + gh + tg
+    ents = [e for p in posts for e in extract(p)]
+    db.insert(conn(), posts)
+    db.insert(conn(), ents)
+    return {"rss": len(rss), "github": len(gh), "telegram": len(tg), "entities": len(ents),
+            "total_posts": conn().osintpost.count_documents({}), "next": "POST /api/run to rescore"}
+
+
+ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+
+@router.get("/wallet/{addr}")
+def wallet(addr: str):
+    if not ADDRESS.match(addr):
+        raise HTTPException(400, "not an address")
+    addr = norm_addr(addr)
+    txs = [t for t in db.select(conn(), Transfer) if addr in (t.from_addr, t.to_addr)]
+    if not txs:
+        raise HTTPException(404, f"no transfers for {addr}")
+    res, labels = _results(), _labels()
+    cluster = res.get("clusters", {}).get(addr)
+    feats = res.get("features", {}).get(addr)
+    if feats is None:
+        df = wallet_features([t for t in txs if t.from_addr == addr])
+        feats = {k: (None if v != v else float(v)) for k, v in df.iloc[0].items()} if not df.empty else {}
+    off = infer_utc_offset([t.ts for t in txs if t.from_addr == addr])
+    recent = sorted(txs, key=lambda t: -t.ts)[:25]
+    return {"address": addr, "label": labels.get(addr, ""), "cluster": cluster,
+            "kind": _kind(addr, cluster, labels, set(res.get("decoys", []))),
+            "features": feats, "bot_score": res.get("bot_scores", {}).get(addr),
+            "utc_offset": off[0] if off else None,
+            "holdings": [h for h in res.get("holdings", []) if h["address"] == addr],
+            "deposits": [d for d in res.get("deposits", []) if d["wallet"] == addr],
+            "transfers": [{**dataclasses.asdict(t), "usd": _value(t)} for t in recent]}
+
+
+@router.get("/matrix")
+def matrix(cluster: int = 0, bucket: Annotated[int, Query(ge=60, le=86400)] = 3600,
+           top: Annotated[int, Query(ge=1, le=200)] = 40):
+    """The ledger as a matrix: the cluster's busiest wallets x time buckets, tx counts."""
+    members = _members(cluster)
+    m = activity_matrix([t for t in db.select(conn(), Transfer) if t.from_addr in members], bucket)
+    if m.empty:
+        return {"wallets": [], "buckets": [], "counts": []}
+    m = m.loc[m.sum(axis=1).sort_values(ascending=False).index[:top]]
+    return {"wallets": m.index.tolist(), "buckets": [int(b) for b in m.columns],
+            "counts": m.astype(int).values.tolist()}
+
+
+@router.get("/mempool")
+async def mempool():
+    """Pending (not yet confirmed) transactions touching the attacker cluster right now."""
+    watch = _members(0)
+    if not env("ALCHEMY_API_KEY"):
+        return {"available": False, "pending": 0, "watching": len(watch)}
+    return {"available": True, "pending": await asyncio.to_thread(pending_count, watch), "watching": len(watch)}
 
 
 # ── live mode ───────────────────────────────────────────────────────────────────────────────────────

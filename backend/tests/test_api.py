@@ -117,8 +117,75 @@ def test_live_stream_emits_queued_transfer(client):
 
 
 def test_endpoints_before_any_run_are_safe():
+    shared = api.STATE["conn"]
     api.STATE["conn"] = db.connect("mongomock://")
-    c = TestClient(api.app)
-    assert c.get("/api/links").json() == []
-    assert c.get("/api/money-now").json()["total_usd"] == 0
-    assert c.get("/api/graph").json() == {"nodes": [], "edges": []}
+    try:
+        c = TestClient(api.app)
+        assert c.get("/api/links").json() == []
+        assert c.get("/api/money-now").json()["total_usd"] == 0
+        assert c.get("/api/graph").json() == {"nodes": [], "edges": []}
+        assert c.get("/api/matrix").json() == {"wallets": [], "buckets": [], "counts": []}
+    finally:
+        api.STATE["conn"] = shared
+
+
+def test_osint_collect_adds_posts_and_searches_case_addresses(client, monkeypatch):
+    from gt.osint.extract import make_post
+    seen = {}
+    monkeypatch.setattr(api, "collect_rss", lambda urls: [make_post("rss", "rekt", 1_760_000_100, "pool drained by 0x" + "ab" * 20)])
+    monkeypatch.setattr(api, "collect_github", lambda qs: seen.setdefault("q", qs) and [make_post("github", "dev1", 1_760_000_200, "fix")])
+
+    async def tg(channels):
+        seen["tg"] = channels
+        return []
+    monkeypatch.setattr(api, "collect_telegram", tg)
+    before_posts = api.conn().osintpost.count_documents({})
+    r = client.post("/api/osint/collect", json={"telegram_channels": ["hacks_watch"]}).json()
+    assert (r["rss"], r["github"], r["telegram"]) == (1, 1, 0) and r["entities"] >= 1
+    assert any(q.startswith("0x") and len(q) == 42 for q in seen["q"])   # the case's seed wallet is searched
+    assert seen["tg"] == ["hacks_watch"]
+    assert r["total_posts"] >= before_posts + 2
+
+
+def test_mempool(client, monkeypatch):
+    monkeypatch.setattr(api, "env", lambda k: None)
+    m = client.get("/api/mempool").json()
+    assert m["available"] is False and m["watching"] > 0
+    monkeypatch.setattr(api, "env", lambda k: "key")
+    monkeypatch.setattr(api, "pending_count", lambda watch: 3)
+    assert client.get("/api/mempool").json() == {"available": True, "pending": 3, "watching": m["watching"]}
+
+
+def test_wallet_detail(client):
+    g = client.get("/api/graph", params={"limit": 50}).json()
+    top = next(n for n in g["nodes"] if n["kind"] == "attacker")
+    w = client.get(f"/api/wallet/{top['id']}").json()
+    assert w["kind"] == "attacker" and w["cluster"] == 0 and w["features"]["n_tx"] >= 1
+    assert "bot_score" in w and w["transfers"] and len(w["transfers"]) <= 25
+    assert client.get("/api/wallet/0x" + "9" * 40).status_code == 404
+    assert client.get("/api/wallet/not-an-address").status_code == 400
+
+
+def test_matrix_and_bot_scores_on_graph(client):
+    m = client.get("/api/matrix", params={"top": 10}).json()
+    assert 0 < len(m["wallets"]) <= 10 and len(m["counts"]) == len(m["wallets"])
+    assert all(len(row) == len(m["buckets"]) for row in m["counts"])
+    g = client.get("/api/graph", params={"limit": 100}).json()
+    assert any(n["bot_score"] is not None and n["bot_score"] > 0.6 for n in g["nodes"])
+
+
+def test_timing_and_deposits_exposed(client):
+    t = client.get("/api/money-now").json()["timing"]
+    assert t["time_to_first_cashout_s"] > 0 and t["prewarn_lead_s"] > 0
+    rep = client.get("/api/report").json()
+    assert rep["timing"]["theft_ts"] and rep["deposits"]
+    assert all(d["n_pieces"] >= 2 for d in rep["deposits"])          # report shows only real reconstructions
+
+
+def test_polish_is_opt_in(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(api.score.llm, "complete", lambda p, **k: calls.append(1) or "AI summary.")
+    plain = client.get("/api/links").json()
+    assert not calls and not plain[0]["explanation"].startswith("AI summary.")
+    polished = client.get("/api/links", params={"polish": True}).json()
+    assert polished[0]["explanation"].startswith("AI summary.") and len(calls) == 3   # top 3 only

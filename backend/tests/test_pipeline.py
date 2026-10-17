@@ -71,3 +71,38 @@ def test_explicit_seed_without_victim_label():
     victim = next(a for a, l in meta["labels"].items() if l == "victim")
     main = max((t for t in db.select(conn, Transfer) if t.from_addr == victim), key=lambda t: t.amount).to_addr
     assert run(conn, seeds={main}).metrics["recall"] >= 0.9
+
+
+def test_deposit_composition_in_results(done):
+    conn, s, r, _ = done
+    assert r.deposits and all(d["exchange"] in s.truth.exit_exchanges for d in r.deposits)
+    assert any(d["method"] != "unmatched" and d["n_pieces"] >= 5 for d in r.deposits)
+
+
+def test_time_to_freeze(done):
+    conn, s, r, _ = done
+    t = r.timing
+    assert t["theft_ts"] == 1_760_000_000
+    assert t["first_cashout_ts"] > t["theft_ts"] and t["time_to_first_cashout_s"] == t["first_cashout_ts"] - t["theft_ts"]
+    assert t["prewarn_lead_s"] > 0                                  # warning came before the theft
+    assert t["next_predicted_exit_s"] is None or t["next_predicted_exit_s"] > 0
+
+
+def test_wallet_features_in_results(done):
+    conn, s, r, _ = done
+    main = sorted(s.truth.attacker_wallets)[0]
+    f = r.features[main]
+    assert f["n_tx"] > 100 and set(f) >= {"mean_gas", "round_frac", "cv_gap", "active_hours"}
+    saved = load_results(conn)
+    assert saved["features"][main]["n_tx"] == f["n_tx"] and "timing" in saved and "deposits" in saved
+
+
+def test_newer_osint_does_not_age_the_case():
+    """Real posts collected today must not make an older case look a year stale (decay uses chain time)."""
+    from gt.osint.extract import make_post
+    conn = db.connect("mongomock://")
+    load_scenario(conn, simulate(seed=11), name="x")
+    db.insert(conn, [make_post("rss", "Blog - Chainalysis", 1_792_000_000, "weekly roundup")])   # ~1 year later
+    r = run(conn)
+    assert r.links[0].identity == "forum:ghostfox" and r.links[0].score >= 0.8
+    assert r.metrics["handle_correct"]

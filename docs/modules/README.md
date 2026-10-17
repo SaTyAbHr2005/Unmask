@@ -14,6 +14,7 @@ Each module has its own detailed guide. Read them in order: each builds on the p
 | M5 Fusion | ✅ done | Combines clues into a probability per wallet-to-identity link, with plain-English reasons, a hashed evidence store and a tamper-evident audit log | [M5-fusion.md](M5-fusion.md) |
 | M6 Defense | ✅ done | Where the money is and who can freeze it, exit prediction, pre-attack warning, decoy filter, human-approved alerts | [M6-defense.md](M6-defense.md) |
 | M7 Pipeline + API | ✅ done | One `run()` over every module (0.85 s) plus the FastAPI endpoints the dashboard uses | [M7-pipeline-api.md](M7-pipeline-api.md) |
+| M7.1 Integration pass | ✅ done | Connects 7 built-but-unused features (OSINT collection, mempool, wallet features, bot scores, matrix, subset-sum deposits) plus time-to-freeze and optional AI wording | [M7.1-integration.md](M7.1-integration.md) |
 | M8 Frontend | ⏳ next | Dashboard, investigation page, printable report | — |
 | M9 Demo + Deploy | ⏳ | Real-hack replay, demo script, Render + Vercel deploy | — |
 

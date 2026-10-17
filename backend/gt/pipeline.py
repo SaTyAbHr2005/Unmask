@@ -7,7 +7,9 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from gt import db
+from gt.analytics.amounts import deposit_composition
 from gt.analytics.behavior import bot_score, infer_utc_offset
+from gt.analytics.features import wallet_features
 from gt.analytics.funding import gas_funders
 from gt.analytics.graph import ATTACKER, build_graph, cluster_wallets, link_bridges
 from gt.chain.labels import load_labels
@@ -40,6 +42,10 @@ class Results:
     metrics: dict | None = None
     stolen_usd: float = 0.0
     case: str = ""
+    deposits: list[dict] = field(default_factory=list)      # which laundered pieces make up each exchange deposit
+    timing: dict = field(default_factory=dict)              # time-to-freeze window
+    features: dict[str, dict] = field(default_factory=dict) # behaviour vector per attacker wallet
+    seeds: list[str] = field(default_factory=list)
 
 
 def load_case(conn, transfers: list[Transfer], posts: list[OsintPost], labels: dict[str, str],
@@ -96,6 +102,25 @@ def _alerts(exits: list[ExitPrediction], held: list[Holding], transfers, labels)
     return out
 
 
+def _timing(transfers: list[Transfer], cluster0: set[str], labels: dict[str, str],
+            exits: list[ExitPrediction], now_ts: int) -> dict:
+    """The freeze window: theft → first cash-out, how early the pre-attack warning came, what's next."""
+    theft = min((t.ts for t in transfers if labels.get(t.from_addr) == "victim" and t.to_addr in cluster0), default=None)
+    cashout = min((t.ts for t in transfers if t.from_addr in cluster0
+                   and labels.get(t.to_addr, "").startswith("exchange:")), default=None)
+    warn = min((a.created_ts for a in prewarn(transfers, labels) if a.target in cluster0), default=None)
+    etas = [e.eta_s for e in exits if not e.arrived and e.eta_s]
+    return {"theft_ts": theft, "first_cashout_ts": cashout,
+            "time_to_first_cashout_s": cashout - theft if theft and cashout else None,
+            "prewarn_ts": warn, "prewarn_lead_s": theft - warn if theft and warn else None,
+            "next_predicted_exit_s": min(etas) if etas else None, "case_now_ts": now_ts}
+
+
+def _features(transfers: list[Transfer], wallets: set[str]) -> dict[str, dict]:
+    df = wallet_features([t for t in transfers if t.from_addr in wallets])
+    return {w: {k: (None if v != v else float(v)) for k, v in row.items()} for w, row in df.iterrows()}  # NaN → None
+
+
 def run(conn, seeds: set[str] | None = None) -> Results:
     meta = db.get_meta(conn, "scenario") or {}
     labels = {**load_labels(), **meta.get("labels", {})}
@@ -112,7 +137,7 @@ def run(conn, seeds: set[str] | None = None) -> Results:
     cluster0 = {w for w, k in clusters.items() if k == ATTACKER}
     decoys = find_decoys(transfers, cluster0, set(labels))
     cluster0 -= decoys
-    now_ts = max([t.ts for t in transfers] + [p.ts for p in posts])
+    now_ts = max(t.ts for t in transfers)   # the case's "now" is chain time — OSINT collected later must not age it
     last_cluster_ts = max((t.ts for t in transfers if t.from_addr in cluster0), default=0)
 
     # identities → scored, explained links (analyst decisions are kept)
@@ -161,6 +186,8 @@ def run(conn, seeds: set[str] | None = None) -> Results:
         handle = links[0].identity.split(":", 1)[1] if links else None
         metrics = evaluate(cluster0, handle, truth)
 
-    r = Results(clusters, links, exits, held, decoys, bridges, bots, offsets, metrics, stolen, meta.get("name", ""))
+    r = Results(clusters, links, exits, held, decoys, bridges, bots, offsets, metrics, stolen, meta.get("name", ""),
+                deposit_composition(transfers, cluster0, labels), _timing(transfers, cluster0, labels, exits, now_ts),
+                _features(transfers, cluster0), sorted(seeds))
     db.put_meta(conn, "results", json.loads(json.dumps(dataclasses.asdict(r), default=sorted)))
     return r
