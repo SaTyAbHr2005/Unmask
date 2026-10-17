@@ -189,3 +189,21 @@ def test_polish_is_opt_in(client, monkeypatch):
     assert not calls and not plain[0]["explanation"].startswith("AI summary.")
     polished = client.get("/api/links", params={"polish": True}).json()
     assert polished[0]["explanation"].startswith("AI summary.") and len(calls) == 3   # top 3 only
+
+
+def test_reveal_personal_details_is_audited(client):
+    before = client.get("/api/report").json()["audit_entries"]
+    r = client.post("/api/privacy/reveal", json={"reason": "exchange freeze request"}, headers={"X-Analyst": "satya"})
+    assert r.status_code == 200 and r.json()["revealed"] is True
+    rep = client.get("/api/report").json()
+    assert rep["audit_entries"] == before + 1 and rep["audit_ok"]
+    assert client.post("/api/privacy/reveal", json={"reason": ""}).status_code == 422   # a reason is required
+
+
+def test_matrix_keeps_quiet_hours_and_sankey_has_no_empty_routes(client):
+    m = client.get("/api/matrix", params={"top": 5}).json()
+    steps = {b - a for a, b in zip(m["buckets"], m["buckets"][1:])}
+    assert steps == {3600}                                  # contiguous hours, quiet ones included
+    sk = client.get("/api/sankey").json()
+    assert all(l["value"] > 0 for l in sk["links"]) and all(
+        any(l["source"] == i or l["target"] == i for l in sk["links"]) for i in range(len(sk["nodes"])))

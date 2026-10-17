@@ -78,7 +78,7 @@ class AuditEntry:
     entry_id: str         # sha256(prev_hash|actor|action|target|ts)[:16]
     ts: int
     actor: str
-    action: str           # "confirm_link" | "reject_link" | "approve_alert" | "send_alert" | "dismiss_alert" | "export_report"
+    action: str           # "confirm_link" | "reject_link" | "approve_alert" | "send_alert" | "dismiss_alert" | "export_report" | "reveal_pii"
     target: str
     prev_hash: str        # entry_id of the previous entry ("" for the first) — tamper-evident chain
 

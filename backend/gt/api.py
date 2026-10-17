@@ -204,6 +204,7 @@ def sankey():
             elif t.kind == "swap" and labels.get(t.to_addr) == "dex":
                 routes["DEX swap"] += _value(t)
     routes["Direct"] = max(res["stolen_usd"] - sum(routes.values()), 0.0)
+    routes = {r: v for r, v in routes.items() if v > 0.001 * res["stolen_usd"]}   # no empty or rounding-crumb routes
     finals: dict[str, float] = defaultdict(float)
     for h in res["holdings"]:
         name = h["freezer"].removeprefix("exchange:") if h["freezer"].startswith("exchange:") else \
@@ -361,6 +362,17 @@ async def osint_collect(body: OsintCollect):
             "total_posts": conn().osintpost.count_documents({}), "next": "POST /api/run to rescore"}
 
 
+class Reveal(BaseModel):
+    reason: Annotated[str, StringConstraints(min_length=3, max_length=200)]
+
+
+@router.post("/privacy/reveal")
+def reveal_personal_details(body: Reveal, actor: Analyst = "analyst"):
+    """Emails/IPs found in OSINT are masked in the UI; revealing them is a recorded decision with a reason."""
+    audit(conn(), actor, "reveal_pii", body.reason)
+    return {"revealed": True}
+
+
 ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
 
@@ -398,6 +410,9 @@ def matrix(cluster: int = 0, bucket: Annotated[int, Query(ge=60, le=86400)] = 36
     if m.empty:
         return {"wallets": [], "buckets": [], "counts": []}
     m = m.loc[m.sum(axis=1).sort_values(ascending=False).index[:top]]
+    # keep quiet hours as empty columns, so the time axis stays honest (capped at 200 columns)
+    cols = range(int(m.columns.min()), int(m.columns.max()) + bucket, bucket)
+    m = m.reindex(columns=list(cols)[:200], fill_value=0)
     return {"wallets": m.index.tolist(), "buckets": [int(b) for b in m.columns],
             "counts": m.astype(int).values.tolist()}
 

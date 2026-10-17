@@ -1,0 +1,55 @@
+.nav {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px var(--gutter);
+  color: var(--graphite);
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--lift) 58%, transparent);
+  transition: background 0.4s, color 0.4s;
+}
+.nav > * {
+  pointer-events: auto;
+}
+.nav-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  font-family: var(--f-display);
+  font-weight: 900;
+  font-size: 1.45rem;
+  letter-spacing: 0.02em;
+}
+.nav nav {
+  display: flex;
+  gap: clamp(12px, 2.4vw, 28px);
+}
+.nav nav a {
+  text-decoration: none;
+  font-size: var(--t-s);
+  padding: 4px 0;
+  border-bottom: 1.5px solid transparent;
+  opacity: 0.72;
+}
+.nav nav a:hover,
+.nav nav a.active {
+  opacity: 1;
+  border-bottom-color: currentColor;
+}
+.nav-night {
+  color: var(--lift);
+  background: linear-gradient(to bottom, var(--soot) 58%, transparent);
+}
+.nav-night[data-day="true"] {
+  color: var(--graphite);
+  background: linear-gradient(to bottom, var(--lift) 58%, transparent);
+}
+@media print {
+  .nav {
+    display: none;
+  }
+}

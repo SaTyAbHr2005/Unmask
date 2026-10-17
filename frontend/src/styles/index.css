@@ -1,0 +1,192 @@
+/* Latent: a forensic-development palette. Every colour means one thing. */
+:root {
+  --soot: #2a2630;        /* black fingerprint powder: night, before anything is developed */
+  --soot-2: #3a3541;
+  --lift: #ecede6;        /* lift card / lab bench: the working surface */
+  --lift-2: #e1e3da;
+  --paper: #f7f8f4;       /* raised lift cards */
+  --graphite: #34322f;    /* ink */
+  --graphite-2: #6b6862;  /* secondary ink */
+  --rule: #c9cbc2;
+  --ninhydrin: #8e2f78;   /* developed evidence: the attacker */
+  --ninhydrin-soft: #e8d3e2;
+  --iodine: #b9801f;      /* money */
+  --iodine-soft: #f1e2c4;
+  --ammonium: #3e7a6a;    /* can still be frozen */
+  --ammonium-soft: #d3e5df;
+  --seal: #c2362b;        /* act now */
+
+  --f-display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+  --f-text: "Schibsted Grotesk", system-ui, sans-serif;
+  --f-mono: "Martian Mono", ui-monospace, monospace;
+
+  /* major-third scale */
+  --t-xs: 0.8rem;
+  --t-s: 0.9rem;
+  --t-m: 1rem;
+  --t-l: 1.25rem;
+  --t-xl: 1.563rem;
+  --t-2xl: 1.953rem;
+  --t-3xl: 2.441rem;
+
+  --gutter: clamp(16px, 3.2vw, 40px);
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--lift);
+  color: var(--graphite);
+  font-family: var(--f-text);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+p {
+  margin: 0;
+  max-width: 62ch;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ninhydrin);
+  outline-offset: 3px;
+}
+
+.mono {
+  font-family: var(--f-mono);
+  font-size: 0.82em;
+  letter-spacing: -0.01em;
+}
+
+.num {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* buttons: an action is ink; the primary action develops into ninhydrin on hover */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+  padding: 0.6em 1.05em;
+  border: 1.5px solid var(--graphite);
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+.btn:hover {
+  background: var(--graphite);
+  color: var(--lift);
+}
+.btn-primary {
+  background: var(--graphite);
+  color: var(--lift);
+}
+.btn-primary:hover {
+  background: var(--ninhydrin);
+  border-color: var(--ninhydrin);
+}
+.btn-seal {
+  border-color: var(--seal);
+  color: var(--seal);
+}
+.btn-seal:hover {
+  background: var(--seal);
+  color: var(--paper);
+}
+.btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* shared by the case file and the dossier */
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 3px;
+}
+.link-btn:hover {
+  text-decoration-color: currentColor;
+}
+.plain-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-s);
+}
+.plain-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--graphite-2);
+  border-bottom: 1px solid var(--graphite);
+  padding: 6px 8px 6px 0;
+}
+.plain-table td {
+  padding: 8px 8px 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.muted {
+  color: var(--graphite-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

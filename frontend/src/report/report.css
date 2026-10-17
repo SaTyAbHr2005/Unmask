@@ -1,0 +1,164 @@
+.dossier {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 92px var(--gutter) 96px;
+  display: grid;
+  gap: 40px;
+}
+.dossier h1 {
+  font-family: var(--f-display);
+  font-weight: 900;
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  line-height: 0.95;
+}
+.dossier h2 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 1.9rem;
+  margin-bottom: 10px;
+  padding-top: 12px;
+  border-top: 1.5px solid var(--graphite);
+}
+.dossier h3 {
+  font-size: var(--t-l);
+  font-weight: 700;
+}
+.dossier .muted {
+  color: var(--graphite-2);
+}
+.small {
+  font-size: var(--t-s);
+}
+.dossier-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: center;
+  color: var(--ninhydrin);
+}
+.dossier-head > div {
+  color: var(--graphite);
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  font-size: var(--t-s);
+}
+.controls input,
+.reveal input {
+  margin-left: 6px;
+  padding: 0.55em 0.6em;
+  border: 1.5px solid var(--rule);
+  background: var(--paper);
+  font: inherit;
+  color: var(--graphite);
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+.facts div {
+  display: grid;
+  gap: 4px;
+}
+.facts .num {
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  line-height: 1;
+}
+.facts .money {
+  color: var(--iodine);
+}
+.ok {
+  color: var(--ammonium);
+}
+.d-suspect {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
+  display: grid;
+  gap: 6px;
+}
+.d-suspect h3 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+}
+.d-suspect.lab-high h3 .mono,
+.d-suspect.lab-confirmed h3 .mono {
+  color: var(--ninhydrin);
+}
+.d-suspect p {
+  max-width: 80ch;
+}
+.privacy .reveal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.privacy .reveal p {
+  flex-basis: 100%;
+}
+.reveal input {
+  margin: 0;
+  min-width: min(22rem, 100%);
+}
+.letter {
+  background: var(--paper);
+  border-left: 4px solid var(--ammonium);
+  padding: 16px 20px;
+  margin-top: 14px;
+}
+.letter header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.letter pre {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  font-family: var(--f-text);
+  font-size: var(--t-s);
+  line-height: 1.6;
+}
+.d-list {
+  margin: 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 8px;
+}
+.audit p + p {
+  margin-top: 6px;
+}
+
+@media (max-width: 700px) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media print {
+  html,
+  body,
+  .dossier {
+    background: #fff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .dossier {
+    padding: 0;
+    gap: 22px;
+  }
+  .letter {
+    break-inside: avoid;
+    background: #fff;
+  }
+  .dossier h2 {
+    break-after: avoid;
+  }
+}

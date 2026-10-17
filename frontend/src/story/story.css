@@ -1,0 +1,309 @@
+.story {
+  --bg: #2a2630;
+  --ink: #ecede6;
+  --ink-2: #a8a4ad;
+  --field: 1;
+  position: relative;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: var(--field);
+  pointer-events: none;
+}
+
+.ch {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  padding: 18vh var(--gutter) 12vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.4rem;
+  max-width: min(46rem, 100%);
+}
+.ch h2 {
+  font-family: var(--f-display);
+  font-weight: 900;
+  font-size: clamp(2.6rem, 6.4vw, 5.2rem);
+  line-height: 0.95;
+  letter-spacing: 0.005em;
+}
+.ch p {
+  font-size: var(--t-l);
+  line-height: 1.6;
+  color: var(--ink);
+  max-width: 34rem;
+}
+
+/* chapter one: the clock is the headline */
+.ch-night {
+  min-height: 100svh;
+  justify-content: flex-end;
+  padding-bottom: 14vh;
+}
+.clock {
+  display: flex;
+  font-family: var(--f-display);
+  font-weight: 900;
+  font-size: clamp(7rem, 24vw, 21rem);
+  line-height: 0.8;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.clock-mask {
+  display: inline-block;
+  overflow: hidden;
+  padding-bottom: 0.04em;
+}
+.clock-digit {
+  display: inline-block;
+}
+.ch-night .lede {
+  max-width: 30rem;
+}
+.hint {
+  font-size: var(--t-s) !important;
+  color: var(--ink-2) !important;
+}
+
+/* chapter two: the money */
+.amount {
+  color: var(--iodine);
+  font-size: clamp(3.6rem, 11vw, 9.5rem) !important;
+  line-height: 0.85;
+  font-weight: 900;
+}
+.wallet-count {
+  font-size: clamp(1.8rem, 3.6vw, 2.8rem) !important;
+  color: var(--iodine) !important;
+  font-weight: 700;
+}
+
+/* the field sits right on wide screens: keep copy on the left half there */
+@media (min-width: 900px) {
+  .ch-split,
+  .ch-mixer,
+  .ch-bridge,
+  .ch-develop {
+    max-width: 44vw;
+  }
+}
+
+/* two rooms */
+.ch-teams {
+  max-width: min(72rem, 100%);
+  min-height: 120vh;
+}
+.rooms {
+  display: grid;
+  grid-template-columns: 1fr 64px 1fr;
+  align-items: stretch;
+  margin: 1rem 0 1.5rem;
+}
+.room h3 {
+  font-family: var(--f-text);
+  font-weight: 500;
+  font-size: var(--t-s);
+  color: var(--ink-2);
+  margin-bottom: 0.8rem;
+}
+.room ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-rows: repeat(4, 1fr);
+  min-height: 22rem;
+}
+.room li {
+  display: grid;
+  grid-template-columns: 3.4rem 1fr;
+  column-gap: 0.8rem;
+  align-content: center;
+  padding: 0.7rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.room li .num {
+  grid-row: span 2;
+  font-size: 1.5rem;
+  color: var(--iodine);
+}
+.room li b {
+  font-weight: 500;
+}
+.room q {
+  quotes: none;
+  color: var(--ink-2);
+  font-style: italic;
+}
+.room-ledger li > span:last-child {
+  color: var(--ink-2);
+}
+.room-ledger .num {
+  color: var(--ninhydrin-soft) !important;
+}
+.threads {
+  width: 100%;
+  height: 100%;
+  margin-top: 2.2rem;
+  overflow: visible;
+}
+.thread {
+  fill: none;
+  stroke: var(--iodine);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+/* development: the name comes up */
+.identity {
+  font-family: var(--f-mono);
+  font-size: clamp(2.4rem, 6vw, 4.6rem) !important;
+  line-height: 1 !important;
+  letter-spacing: -0.03em;
+}
+.identity-clear {
+  color: var(--ninhydrin);
+}
+.identity-noise {
+  color: color-mix(in srgb, var(--ninhydrin) 35%, transparent);
+}
+.confidence {
+  color: var(--ink-2) !important;
+}
+.clues {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.95rem;
+}
+.clues li {
+  display: grid;
+  grid-template-columns: 7rem 2.6rem 1fr;
+  gap: 0.8rem;
+  align-items: baseline;
+  font-size: var(--t-m);
+}
+.clue-bar {
+  height: 6px;
+  background: var(--ninhydrin-soft);
+  align-self: center;
+}
+.clue-bar i {
+  display: block;
+  height: 100%;
+  background: var(--ninhydrin);
+}
+.clue-lr {
+  font-size: 1.25rem;
+  color: var(--ninhydrin);
+}
+
+/* freeze */
+.ch-freeze {
+  max-width: min(64rem, 100%);
+}
+.ch-freeze h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.3em;
+}
+.ch-freeze h2 .amount {
+  color: var(--ammonium);
+}
+.freeze-bar {
+  display: flex;
+  height: 18px;
+  gap: 3px;
+  margin-top: 0.6rem;
+}
+.freeze-bar span {
+  display: block;
+}
+.fz-ex {
+  background: var(--ammonium);
+}
+.fz-usdt {
+  background: color-mix(in srgb, var(--ammonium) 55%, var(--lift));
+}
+.fz-eth {
+  background: var(--graphite);
+}
+.freeze-legend,
+.timing {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.4rem 2rem;
+  margin: 0.4rem 0 0;
+}
+.freeze-legend dt,
+.timing dt {
+  font-size: clamp(1.8rem, 3.4vw, 2.6rem);
+  line-height: 1;
+}
+.freeze-legend div:nth-child(-n + 2) dt {
+  color: var(--ammonium);
+}
+.timing {
+  margin-top: 2.4rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--rule);
+}
+.timing dt {
+  color: var(--iodine);
+}
+.freeze-legend dd,
+.timing dd {
+  margin: 0.4rem 0 0;
+  color: var(--ink-2);
+  max-width: 18rem;
+}
+.cta {
+  margin-top: 2.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem 2rem;
+  align-items: center;
+}
+.cta .btn {
+  font-size: var(--t-l);
+  padding: 0.85em 1.4em;
+}
+.fine {
+  font-size: var(--t-s) !important;
+  color: var(--ink-2) !important;
+  max-width: 28rem !important;
+}
+
+@media (max-width: 899px) {
+  .field {
+    opacity: calc(var(--field) * 0.75);
+  }
+  .rooms {
+    grid-template-columns: 1fr;
+  }
+  .threads {
+    display: none;
+  }
+  .room ul {
+    min-height: 0;
+  }
+  .room + .threads + .room {
+    margin-top: 1.6rem;
+  }
+  .clues li {
+    grid-template-columns: 4rem 2.4rem 1fr;
+  }
+  .freeze-legend,
+  .timing {
+    grid-template-columns: 1fr;
+  }
+}
