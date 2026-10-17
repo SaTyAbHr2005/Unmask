@@ -47,3 +47,12 @@ def test_deleting_an_entry_breaks_the_chain():
 def test_empty_audit_is_valid():
     assert verify_audit(db.connect("mongomock://"))
     assert {AuditEntry, Evidence} <= set(__import__("gt.schema", fromlist=["ALL"]).ALL)
+
+
+def test_head_is_newest_entry():
+    from gt.fusion.evidence import head
+    conn = db.connect("mongomock://")
+    assert head(conn) == ""
+    audit(conn, "a", "confirm_link", "x", ts=1)
+    last = audit(conn, "a", "send_alert", "y", ts=2)
+    assert head(conn) == last.entry_id

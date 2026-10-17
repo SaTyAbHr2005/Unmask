@@ -1,0 +1,166 @@
+"""One call runs the whole engine on whatever case is loaded (simulator, replay or live):
+data → clusters → identities → scored links → money location & exits → proposed alerts."""
+import dataclasses
+import json
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from gt import db
+from gt.analytics.behavior import bot_score, infer_utc_offset
+from gt.analytics.funding import gas_funders
+from gt.analytics.graph import ATTACKER, build_graph, cluster_wallets, link_bridges
+from gt.chain.labels import load_labels
+from gt.chain.normalize import classify
+from gt.config import usd
+from gt.defense.alerts import queue
+from gt.defense.freeze import ExitPrediction, Holding, holdings, predict_exits
+from gt.defense.guards import find_decoys, prewarn
+from gt.fusion.evidence import record
+from gt.fusion.score import build_signals, link_for
+from gt.osint.extract import extract
+from gt.osint.style import resolve_identities
+from gt.schema import Alert, Entity, Link, OsintPost, Transfer
+from gt.simulator import Scenario, Truth, evaluate
+
+MIN_EXIT_ALERT_SHARE = 0.05
+MIN_FREEZE_ALERT_USD = 10_000.0
+
+
+@dataclass
+class Results:
+    clusters: dict[str, int] = field(default_factory=dict)
+    links: list[Link] = field(default_factory=list)
+    exits: list[ExitPrediction] = field(default_factory=list)
+    holdings: list[Holding] = field(default_factory=list)
+    decoys: set[str] = field(default_factory=set)
+    bridges: list[tuple[str, str, float]] = field(default_factory=list)
+    bot_scores: dict[str, float] = field(default_factory=dict)
+    utc_offsets: dict[str, tuple[int, float]] = field(default_factory=dict)
+    metrics: dict | None = None
+    stolen_usd: float = 0.0
+    case: str = ""
+
+
+def load_case(conn, transfers: list[Transfer], posts: list[OsintPost], labels: dict[str, str],
+              bytecodes: dict[str, str], truth: Truth | None = None, name: str = "",
+              seeds: list[str] | None = None) -> None:
+    """Replace whatever case is loaded with this one."""
+    db.clear(conn)
+    db.insert(conn, transfers)
+    db.insert(conn, posts)
+    db.insert(conn, [e for p in posts for e in extract(p)])
+    db.put_meta(conn, "scenario", {
+        "name": name, "labels": labels, "bytecodes": bytecodes, "seeds": seeds or [],
+        "truth": json.loads(json.dumps(dataclasses.asdict(truth), default=sorted)) if truth else None})
+    db.put_meta(conn, "results", None)
+
+
+def load_scenario(conn, s: Scenario, name: str = "Simulated attack") -> None:
+    load_case(conn, s.transfers, s.posts, s.labels, s.bytecodes, s.truth, name)
+
+
+def load_results(conn) -> dict | None:
+    return db.get_meta(conn, "results")
+
+
+def _default_seeds(transfers: list[Transfer], labels: dict[str, str]) -> set[str]:
+    """The wallet that received the largest single payment out of the victim."""
+    stolen = [t for t in transfers if labels.get(t.from_addr) == "victim" and t.to_addr not in labels]
+    return {max(stolen, key=lambda t: usd(t.asset, t.amount) or 0).to_addr} if stolen else set()
+
+
+def _alerts(exits: list[ExitPrediction], held: list[Holding], transfers, labels) -> list[Alert]:
+    out = prewarn(transfers, labels)
+    for e in exits:
+        if e.share < MIN_EXIT_ALERT_SHARE:
+            continue
+        if e.arrived:
+            msg = (f"{e.share:.0%} of the stolen funds (${e.usd:,.0f}) is already deposited at {e.exchange} "
+                   f"({e.address[:12]}…). Ask their compliance team to freeze the account.")
+        else:
+            eta = f"~{e.eta_s / 3600:.0f}h" if e.eta_s else "soon"
+            msg = (f"~{e.share:.0%} of the stolen funds (${e.usd:,.0f}) is expected to reach {e.exchange} in {eta}. "
+                   f"Warn their compliance team now.")
+        out.append(Alert(f"exit:{e.address}:{'arrived' if e.arrived else 'predicted'}", "exit", e.exchange, msg))
+    by_issuer: dict[str, list[Holding]] = {}
+    for h in held:                       # exchanges are covered by exit alerts; issuers get one alert each
+        if h.freezable and not h.freezer.startswith("exchange:"):
+            by_issuer.setdefault(h.freezer, []).append(h)
+    for issuer, hs in by_issuer.items():
+        total = sum(h.usd for h in hs)
+        if total >= MIN_FREEZE_ALERT_USD:
+            out.append(Alert(f"freeze:{issuer}", "freeze", issuer,
+                             f"${total:,.0f} in {', '.join(sorted({h.asset for h in hs}))} across {len(hs)} address(es) "
+                             f"can be frozen by {issuer}. The freeze request is ready in the report."))
+    return out
+
+
+def run(conn, seeds: set[str] | None = None) -> Results:
+    meta = db.get_meta(conn, "scenario") or {}
+    labels = {**load_labels(), **meta.get("labels", {})}
+    bytecodes = meta.get("bytecodes", {})
+    transfers = [dataclasses.replace(t, kind=classify(t, labels)) for t in db.select(conn, Transfer)]
+    posts, entities = db.select(conn, OsintPost), db.select(conn, Entity)
+    seeds = seeds or set(meta.get("seeds", [])) or _default_seeds(transfers, labels)
+    if not transfers or not seeds:
+        return Results(case=meta.get("name", ""))
+
+    G = build_graph(transfers)
+    bridges = link_bridges(G, transfers)
+    clusters = cluster_wallets(G, gas_funders(transfers), seeds, labels)
+    cluster0 = {w for w, k in clusters.items() if k == ATTACKER}
+    decoys = find_decoys(transfers, cluster0, set(labels))
+    cluster0 -= decoys
+    now_ts = max([t.ts for t in transfers] + [p.ts for p in posts])
+    last_cluster_ts = max((t.ts for t in transfers if t.from_addr in cluster0), default=0)
+
+    # identities → scored, explained links (analyst decisions are kept)
+    ids = resolve_identities(posts)
+    by_identity: dict[str, list[OsintPost]] = {}
+    for p in posts:
+        by_identity.setdefault(ids[f"{p.source}:{p.author}"], []).append(p)
+    decided = {l.link_id: l.status for l in db.select(conn, Link) if l.status in ("confirmed", "rejected")}
+    links = []
+    for identity, ps in by_identity.items():
+        signals = build_signals(cluster0, ps, entities, transfers, bytecodes)
+        if not signals:
+            continue
+        freshest = max(max(p.ts for p in ps), last_cluster_ts)       # newest activity on either side of the link
+        link = link_for(ATTACKER, identity, signals, age_s=now_ts - freshest, now_ts=now_ts)
+        link.evidence = [record(conn, s, "signal") for s in signals]
+        link.status = decided.get(link.link_id, link.status)
+        links.append(link)
+    links.sort(key=lambda l: -l.score)
+    conn.link.delete_many({})
+    db.insert(conn, links)
+
+    # where is the money, where is it going, what should a human approve
+    held = holdings(transfers, cluster0, labels)
+    stolen = sum(usd(t.asset, t.amount) or 0 for t in transfers
+                 if labels.get(t.from_addr) == "victim" and t.to_addr in cluster0) or sum(h.usd for h in held)
+    exits = predict_exits(G, seeds, labels, stolen)
+    queue(conn, _alerts(exits, held, transfers, labels))
+
+    sent: dict[str, list[Transfer]] = {}
+    for t in sorted(transfers, key=lambda t: t.ts):
+        if t.from_addr in cluster0:
+            sent.setdefault(t.from_addr, []).append(t)
+    bots = {w: s for w, txs in sent.items()
+            if (s := bot_score(np.diff([t.ts for t in txs]).tolist(), [t.amount for t in txs if t.amount > 0])) is not None}
+    offsets = {}
+    if (o := infer_utc_offset([t.ts for txs in sent.values() for t in txs])):
+        offsets["cluster:0"] = o
+    for identity, ps in by_identity.items():
+        if (o := infer_utc_offset([p.ts for p in ps])):
+            offsets[f"identity:{identity}"] = o
+
+    metrics = None
+    if meta.get("truth"):
+        truth = Truth(**{k: set(v) if isinstance(v, list) else v for k, v in meta["truth"].items()})
+        handle = links[0].identity.split(":", 1)[1] if links else None
+        metrics = evaluate(cluster0, handle, truth)
+
+    r = Results(clusters, links, exits, held, decoys, bridges, bots, offsets, metrics, stolen, meta.get("name", ""))
+    db.put_meta(conn, "results", json.loads(json.dumps(dataclasses.asdict(r), default=sorted)))
+    return r

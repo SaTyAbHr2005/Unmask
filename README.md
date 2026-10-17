@@ -29,8 +29,8 @@ Three data modes feed one pipeline:
 
 | Module | Status |
 |---|---|
-| M0 Foundation · M1 Simulator · M2 Chain ingestion · M3 OSINT · M4 Analytics · M5 Fusion · M6 Defense | ✅ done |
-| M7 API · M8 Frontend · M9 Deploy | ⏳ in progress |
+| M0 Foundation · M1 Simulator · M2 Chain ingestion · M3 OSINT · M4 Analytics · M5 Fusion · M6 Defense · M7 API | ✅ done |
+| M8 Frontend · M9 Deploy | ⏳ in progress |
 
 The detailed guide for each module is in [docs/modules/](docs/modules/README.md), and the full build plan is in [docs/superpowers/plans/](docs/superpowers/plans/2026-10-17-unmask-engine.md).
 
@@ -44,6 +44,14 @@ py -3.11 -m pip install -r backend/requirements.txt
 ```bash
 py -3.11 -m pytest backend/tests -q
 ```
+
+## Run the API
+
+```bash
+py -3.11 -m uvicorn gt.api:app --app-dir backend --port 8000
+```
+
+Then open http://localhost:8000/docs, call `POST /api/simulate` and `POST /api/run`.
 
 ## Configuration
 

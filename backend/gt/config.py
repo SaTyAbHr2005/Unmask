@@ -21,8 +21,10 @@ def usd(asset: str, amount: float) -> float | None:
     if asset == "ETH":
         return amount * ETH_USD
     return amount if asset in STABLES else None
+
+
 PRIOR = 0.01
-HALF_LIFE_S = 6 * 3600
+HALF_LIFE_S = 7 * 24 * 3600   # attribution confidence halves after a week without fresh activity
 DB_NAME = "unmask"
 
 # OSINT sources (feeds checked live 2026-10-17; drop any that stop answering)

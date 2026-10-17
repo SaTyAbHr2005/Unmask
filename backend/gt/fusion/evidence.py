@@ -32,11 +32,16 @@ def _tails(entries: list[AuditEntry]) -> set[str]:
     return {e.entry_id for e in entries} - {e.prev_hash for e in entries}
 
 
+def head(conn) -> str:
+    """Id of the newest audit entry ("" if none). Printing it in a report anchors the chain from outside."""
+    tails = _tails(db.select(conn, AuditEntry))
+    return min(tails) if tails else ""
+
+
 def audit(conn, actor: str, action: str, target: str, ts: int | None = None) -> AuditEntry:
     """Append one human action to the chain.
     ponytail: single writer assumed; two simultaneous appends would fork the chain — add a lock if multi-user."""
-    tails = _tails(db.select(conn, AuditEntry))
-    prev = min(tails) if tails else ""
+    prev = head(conn)
     ts = int(time.time()) if ts is None else ts
     entry = AuditEntry(_entry_id(prev, actor, action, target, ts), ts, actor, action, target, prev)
     db.insert(conn, [entry])

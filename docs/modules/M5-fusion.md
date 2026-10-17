@@ -59,7 +59,7 @@ Example: 1:99 × 30 × 20 = 600:99 ≈ **86%**.
 The time-delta test runs on the person's **whole identity** (all their linked accounts from M3), not one account. The hacker's Telegram account alone had only 6 posts, too few to be significant.
 
 ### Confidence fades (`decay`)
-`score × 0.5^(age / 6 hours)`: without fresh evidence, confidence halves every 6 hours. Wallets get abandoned and accounts get sold, so old links shouldn't look as solid as new ones.
+`score × 0.5^(age / 7 days)`: without fresh evidence, confidence halves every week. Wallets get abandoned and accounts get sold, so old links shouldn't look as solid as new ones. The age is measured from the **newest activity on either side of the link** (the person's last post or the cluster's last transaction) to the case's latest data. The first design used 6 hours, which decayed the real hacker to 1.5% within a day; see M7.
 
 ### Labels (`label`)
 `confirmed` / `rejected` when a human analyst has decided; otherwise **high** (≥ 80%), **medium** (≥ 50%) or **low**. Everything starts as **suspected**; only a human can confirm.

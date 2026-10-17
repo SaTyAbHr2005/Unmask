@@ -28,9 +28,12 @@ def insert(conn: Database, rows: list) -> int:
     key = dataclasses.fields(cls)[0].name
     docs = [{"_id": getattr(r, key), **dataclasses.asdict(r)} for r in rows]
     coll = conn[_coll(cls)]
-    if isinstance(conn.client, mongomock.MongoClient):  # mongomock 4.3 rejects pymongo's ReplaceOne in bulk_write
-        for d in docs:
-            coll.replace_one({"_id": d["_id"]}, d, upsert=True)
+    if isinstance(conn.client, mongomock.MongoClient):
+        # mongomock 4.3 rejects pymongo's ReplaceOne in bulk_write, and per-row replace_one is O(n) each
+        # (9k transfers took 52 s) — so upsert as one delete + one insert. Last row wins on duplicate ids.
+        docs = list({d["_id"]: d for d in docs}.values())
+        coll.delete_many({"_id": {"$in": [d["_id"] for d in docs]}})
+        coll.insert_many(docs)
     else:
         coll.bulk_write([ReplaceOne({"_id": d["_id"]}, d, upsert=True) for d in docs], ordered=False)
     return len(rows)

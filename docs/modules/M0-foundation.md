@@ -82,7 +82,7 @@ One collection per class, named by the lowercase class name: `transfer`, `osintp
 ## Config (`config.py`)
 - `env("NAME")` reads a key from `.env`. An empty value counts as "not set" (returns `None`).
 - `DATA_DIR` is the absolute path to `HackForge/data`. It works no matter which folder you start the server from, which matters on Render.
-- Constants: `ETH_USD = 3000` (fixed price, so all USD numbers are reproducible), `PRIOR = 0.01` (starting belief for a link), `HALF_LIFE_S = 6h` (how fast confidence fades), `DB_NAME = "unmask"`.
+- Constants: `ETH_USD = 3000` (fixed price, so all USD numbers are reproducible) with `usd(asset, amount)` to convert, `PRIOR = 0.01` (starting belief for a link), `HALF_LIFE_S = 7 days` (how fast confidence fades), `DB_NAME = "unmask"`.
 
 ## Two rules every module must follow
 1. **Addresses are lowercase**, so `0xAbC` and `0xabc` are the same wallet.
