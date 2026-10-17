@@ -120,7 +120,7 @@ The canonical identity is the alphabetically first account in the group, for exa
 | `GITHUB_TOKEN` | GitHub code search + higher rate limit | Commit search still works |
 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | Telegram channels (also needs `py -3.11 -m pip install telethon`) | Telegram skipped |
 | `GROQ_API_KEY` / `GEMINI_API_KEY` | AI polish | Template text is used |
-| `GROQ_MODEL` / `GEMINI_MODEL` | Change the model if the default is retired | Defaults: `llama-3.3-70b-versatile`, `gemini-2.0-flash` |
+| `GROQ_MODEL` / `GEMINI_MODEL` | Change the model if the default is retired | Defaults: `openai/gpt-oss-120b` (low reasoning effort), `gemini-flash-latest` (thinking off). Both earlier defaults were retired in 2026. |
 
 ## How to test
 From `HackForge`:

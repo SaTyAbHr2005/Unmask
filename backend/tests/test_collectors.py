@@ -114,3 +114,7 @@ def test_llm_groq_then_gemini_fallback(monkeypatch):
         "candidates": [{"content": {"parts": [{"text": "gemini says hi"}]}}]})})
     assert llm.complete("hi", http=fallback) == "gemini says hi"
     assert llm.complete("hi", http=FakeHttp({"groq": R(500), "generativelanguage": httpx.ConnectError("x")})) is None
+    # a reasoning model that spent the whole budget thinking answers "" (or null): that's a miss, try Gemini
+    empty = FakeHttp({"groq": R(200, {"choices": [{"message": {"content": None}}]}), "generativelanguage": R(200, {
+        "candidates": [{"content": {"parts": [{"text": "gemini says hi"}]}}]})})
+    assert llm.complete("hi", http=empty) == "gemini says hi"

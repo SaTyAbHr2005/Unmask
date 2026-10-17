@@ -98,7 +98,7 @@ def explain(link: Link, polish: bool = False) -> str:
     text = f"{link.status.capitalize()} ({round(link.score * 100)}%): {link.identity} ↔ cluster {link.cluster_id}. Because: {reasons}."
     if polish:
         summary = llm.complete("In one plain sentence for an investigator, summarise this finding without adding "
-                               f"any facts:\n{text}", max_tokens=80)
+                               f"any facts (refer to people as 'they'):\n{text}", max_tokens=80)
         if summary:
             return f"{summary} — {text}"
     return text
