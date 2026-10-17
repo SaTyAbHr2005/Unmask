@@ -64,4 +64,23 @@ class Alert:
     created_ts: int = 0
 
 
-ALL = [Transfer, OsintPost, Entity, Link, Alert]
+@dataclass
+class Evidence:
+    hash: str             # sha256 hex of the canonical JSON payload
+    kind: str             # "transfer" | "post" | "signal" | …
+    source_url: str
+    captured_ts: int
+    payload: str          # canonical JSON (sorted keys)
+
+
+@dataclass
+class AuditEntry:
+    entry_id: str         # sha256(prev_hash|actor|action|target|ts)[:16]
+    ts: int
+    actor: str
+    action: str           # "confirm_link" | "reject_link" | "approve_alert" | "send_alert" | "export_report"
+    target: str
+    prev_hash: str        # entry_id of the previous entry ("" for the first) — tamper-evident chain
+
+
+ALL = [Transfer, OsintPost, Entity, Link, Alert, Evidence, AuditEntry]

@@ -19,7 +19,7 @@ Four people build different parts at the same time: chain, OSINT, math, UI. If t
 
 | File | What it does |
 |---|---|
-| [backend/gt/schema.py](../../backend/gt/schema.py) | The 6 data shapes (dataclasses) that every module passes around |
+| [backend/gt/schema.py](../../backend/gt/schema.py) | The data shapes (dataclasses) that every module passes around |
 | [backend/gt/db.py](../../backend/gt/db.py) | Save and load those shapes in MongoDB |
 | [backend/gt/config.py](../../backend/gt/config.py) | Reads `.env` keys and holds shared constants |
 | [backend/.env.example](../../backend/.env.example) | List of every secret or key the app can use (values left empty) |
@@ -57,6 +57,9 @@ An address, tx hash, IP, email, @handle or ENS name. `entity_id` is a hash of po
 
 ### `Alert`: something a human must approve before it is sent
 `kind` (`exit`, `prewarn`, `freeze`, `decoy`), `target`, `message`, `status` (`pending` → `approved` → `sent`, or `dismissed`).
+
+### `Evidence` and `AuditEntry` (added in M5)
+A content-hashed copy of every piece of evidence, and one tamper-evident record per human decision. See [M5-fusion.md](M5-fusion.md).
 
 `ALL` lists every shape that gets its own database collection.
 
