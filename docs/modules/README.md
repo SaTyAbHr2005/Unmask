@@ -1,0 +1,41 @@
+# Unmask: module guide
+
+Unmask connects **who said what, and when** on the open internet (OSINT) with **which wallet moved what, and when** on the blockchain. It finds the hacker's wallets, names the likely online identity with an explained confidence score, predicts where the stolen money will be cashed out, and alerts the people who can freeze it.
+
+Each module has its own detailed guide. Read them in order: each builds on the previous ones.
+
+| Module | Status | What it does | Guide |
+|---|---|---|---|
+| M0 Foundation | ✅ done | Data shapes every module shares, plus MongoDB storage | [M0-foundation.md](M0-foundation.md) |
+| M1 Attack Simulator | ✅ done | A fake but realistic hack, with an answer key for measuring accuracy | [M1-attack-simulator.md](M1-attack-simulator.md) |
+| M2 Chain Ingestion | ✅ done (real replay file pending keys) | Brings in Etherscan replays and the Alchemy live stream, and cleans the data | [M2-chain-ingestion.md](M2-chain-ingestion.md) |
+| M3 OSINT Ingestion | ⏳ next | Collects forum, Telegram, GitHub and RSS text; extracts addresses and handles; links aliases | — |
+| M4 Analytics | ⏳ | The math: graph, clustering, gas funders, bridge matching, bot and time-zone detection, time-delta test | — |
+| M5 Fusion | ⏳ | Combines evidence into a probability per wallet-to-identity link, with explanations and an evidence chain | — |
+| M6 Defense | ⏳ | Exit prediction, freezability, pre-attack warning, decoy filter, human-approved alerts | — |
+| M7 Pipeline + API | ⏳ | One `run()` over everything, plus FastAPI endpoints | — |
+| M8 Frontend | ⏳ | Dashboard, investigation page, printable report | — |
+| M9 Demo + Deploy | ⏳ | Real-hack replay, demo script, Render + Vercel deploy | — |
+
+## Big picture
+
+```
+ DATA IN                         CORE                                 OUT
+ ───────                         ────                                 ───
+ Simulator (M1) ─┐
+ Etherscan (M2) ─┼─► MongoDB (M0) ─► Analytics (M4) ─► Fusion (M5) ─► Defense (M6) ─► API (M7) ─► UI (M8)
+ Alchemy   (M2) ─┤                                                                      │
+ OSINT     (M3) ─┘                                                         alerts ◄─────┘ (after human approval)
+```
+
+## Running the tests
+From the `HackForge` folder (system Python 3.11, no venv):
+
+```bash
+py -3.11 -m pip install -r backend/requirements.txt
+```
+```bash
+py -3.11 -m pytest backend/tests -q
+```
+
+Full plan: [docs/superpowers/plans/2026-10-17-unmask-engine.md](../superpowers/plans/2026-10-17-unmask-engine.md)

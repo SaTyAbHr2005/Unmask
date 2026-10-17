@@ -1,0 +1,9 @@
+# Seed labels: widely published addresses. VERIFY each on etherscan.io before relying on it in a demo.
+# Tornado Cash ETH pools (OFAC SDN listing, Aug 2022); Binance hot wallet ("Binance 14" on Etherscan).
+# Add more rows as address,label. Labels: mixer | bridge | dex | victim | exchange:<Name>
+address,label
+0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc,mixer
+0x47CE0C6eD5B0Ce3d3A51fdb1C52DC66a7c3c2936,mixer
+0x910Cbd523D972eb0a6f4cAe4618aD62622b39DbF,mixer
+0xA160cdAB225685dA1d56aa342Ad8841c3b53f291,mixer
+0x28C6c06298d514Db089934071355E5743bf21d60,exchange:Binance
