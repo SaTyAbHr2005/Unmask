@@ -1,0 +1,40 @@
+# Unmask engine (FastAPI) on Render's free plan. The website is deployed separately on Vercel (frontend/).
+# Secrets use `sync: false`: Render asks for each value in its dashboard when the Blueprint is first applied,
+# so no key is ever stored in this repo. Leave a field empty if you don't use that service.
+services:
+  - type: web
+    name: unmask-api
+    runtime: python
+    plan: free
+    region: singapore            # closest Render region to India; it can't be changed later
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn gt.api:app --app-dir backend --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:                     # the website lives on Vercel: its changes don't need to rebuild the engine
+        - backend/**
+        - data/**
+        - render.yaml
+        - .python-version
+    envVars:
+      - key: MONGODB_URI         # MongoDB Atlas connection string (allow 0.0.0.0/0 in Atlas Network Access)
+        sync: false
+      - key: FRONTEND_ORIGINS    # the Vercel site's address, e.g. https://unmask.vercel.app (comma-separate several)
+        sync: false
+      - key: ETHERSCAN_API_KEY   # "Trace any address" (the four stored hacks load without it)
+        sync: false
+      - key: ALCHEMY_API_KEY     # Watch mode on real cases, mempool check
+        sync: false
+      - key: GITHUB_TOKEN        # GitHub code search in "Collect public posts"
+        sync: false
+      - key: GROQ_API_KEY        # optional plain-language summaries
+        sync: false
+      - key: GEMINI_API_KEY      # optional backup for the summaries
+        sync: false
+      - key: DISCORD_WEBHOOK_URL # optional: where approved alerts are posted
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN  # optional: approved alerts by Telegram instead
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false

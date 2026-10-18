@@ -301,3 +301,19 @@ def test_loading_a_case_clears_freeze_requests():
     db.put_meta(conn, "freeze", {"Tether": {"status": "frozen", "ts": 1, "by": "x"}})
     load_case(conn, [], [], {}, {}, name="new")
     assert db.get_meta(conn, "freeze") == {}
+
+
+def test_stored_hacks_load_from_their_recorded_trace_without_etherscan(monkeypatch):
+    shared = api.STATE["conn"]
+    api.STATE["conn"] = db.connect("mongomock://")
+    try:
+        monkeypatch.setattr(api, "env", lambda k: None)                         # no Etherscan key on the server
+        monkeypatch.setattr(api, "trace", lambda cfg: pytest.fail("a recorded hack must not call Etherscan"))
+        c = TestClient(api.app)
+        r = c.post("/api/replay/euler-2023")
+        assert r.status_code == 200 and r.json()["transfers"] > 1000
+        c.post("/api/run")
+        m = c.get("/api/money-now").json()
+        assert m["total_usd"] == pytest.approx(191.6e6, rel=0.01) and m["returned_usd"] == pytest.approx(189.4e6, rel=0.01)
+    finally:
+        api.STATE["conn"] = shared

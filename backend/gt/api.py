@@ -1,11 +1,13 @@
 """HTTP API for the dashboard. Run: py -3.11 -m uvicorn gt.api:app --reload --port 8000 (from backend/)."""
 import asyncio
 import dataclasses
+import gzip
 import json
 import re
 import time
 from collections import defaultdict
 from datetime import date
+from pathlib import Path
 from typing import Annotated
 
 import mongomock
@@ -104,23 +106,40 @@ def replay_case(name: str):
     path = DATA_DIR / "replays" / f"{name}.json"
     if not path.exists():
         raise HTTPException(404, f"no replay called {name}")
-    return _load_trace(json.loads(path.read_text()), name)
+    snap = DATA_DIR / "replays" / "snapshots" / f"{name}.json.gz"
+    return _load_trace(json.loads(path.read_text()), name, snap if snap.exists() else None)
 
 
-def _load_trace(cfg: dict, name: str) -> dict:
-    """Trace real money from cfg's seed addresses and make it the loaded case (shared by replays and investigations)."""
-    if not env("ETHERSCAN_API_KEY"):
-        raise HTTPException(400, "Tracing real transactions needs ETHERSCAN_API_KEY in backend/.env")
+def trace_case(cfg: dict) -> tuple[list[Transfer], dict[str, str], set[str], dict[str, str]]:
+    """Trace real money from cfg's seed addresses: (transfers, bytecodes, fully loaded wallets, third-party contracts)."""
     transfers, codes, complete = trace(cfg)
+    seeds = {norm_addr(a) for a in cfg.get("seed_addresses", [])}
+    chain_of = {a: CHAIN_IDS.get(t.chain, 1) for t in transfers for a in (t.from_addr, t.to_addr)}
+    hubs = third_party_contracts(transfers, seeds, _case_labels(cfg), lambda a: len(get_code(a, chain_of.get(a, 1))) > 2)
+    return transfers, codes, complete, hubs
+
+
+def _case_labels(cfg: dict) -> dict[str, str]:
+    return {**load_labels(), **{norm_addr(a): "victim" for a in cfg.get("victims", [])}}   # lets theft be measured
+
+
+def _load_trace(cfg: dict, name: str, snapshot: Path | None = None) -> dict:
+    """Make a real trace the loaded case (shared by replays and investigations). A stored hack loads from its recorded
+    trace in data/replays/snapshots when there is one: a fresh server (Render wipes its disk) needs no Etherscan calls."""
+    if snapshot:
+        snap = json.loads(gzip.decompress(snapshot.read_bytes()))
+        transfers = [Transfer(**t) for t in snap["transfers"]]
+        codes, complete, hubs = snap["codes"], set(snap["complete"]), snap["hubs"]
+    else:
+        if not env("ETHERSCAN_API_KEY"):
+            raise HTTPException(400, "Tracing real transactions needs ETHERSCAN_API_KEY in backend/.env")
+        transfers, codes, complete, hubs = trace_case(cfg)
     if not transfers:   # keep whatever case is loaded rather than replacing it with nothing
         raise HTTPException(404, "No transactions with a known price for these addresses in that window. "
                                  "Check the address, the chain and the dates.")
     seeds = {norm_addr(a) for a in cfg.get("seed_addresses", [])}
-    chain_of = {a: CHAIN_IDS.get(t.chain, 1) for t in transfers for a in (t.from_addr, t.to_addr)}
-    labels = {**load_labels(), **{norm_addr(a): "victim" for a in cfg.get("victims", [])}}   # lets theft be measured
-    hubs = third_party_contracts(transfers, seeds, labels, lambda a: len(get_code(a, chain_of.get(a, 1))) > 2)
     price = cfg.get("eth_usd") or (eth_usd_on(date.fromisoformat(cfg["window"][0])) if cfg.get("window") else None)
-    load_case(conn(), transfers, [], {**labels, **hubs}, codes, None, cfg.get("name", name), sorted(seeds), price,
+    load_case(conn(), transfers, [], {**_case_labels(cfg), **hubs}, codes, None, cfg.get("name", name), sorted(seeds), price,
               sorted(complete))
     return {"transfers": len(transfers), "posts": 0, "third_party_contracts": len(hubs), "eth_usd": eth_usd()}
 
