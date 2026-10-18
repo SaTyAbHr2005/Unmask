@@ -118,6 +118,53 @@
   align-items: center;
   gap: 12px;
 }
+.letter header h3 .num {
+  margin-left: 8px;
+  color: var(--iodine);
+}
+.freeze-status {
+  margin-left: auto;
+  font-size: var(--t-s);
+  color: var(--graphite-2);
+}
+.letter.st-requested,
+.letter.st-acknowledged {
+  border-left-color: var(--iodine);
+}
+.letter.st-frozen {
+  border-left-color: var(--ammonium);
+  background: var(--ammonium-soft);
+}
+.letter.st-frozen .freeze-status {
+  color: var(--ammonium);
+  font-weight: 700;
+}
+.letter.st-declined {
+  border-left-color: var(--seal);
+}
+.letter.st-draft {
+  border-left-color: var(--rule);
+}
+.how-to-send {
+  margin-top: 12px;
+  font-size: var(--t-s);
+}
+.how-to-send summary {
+  cursor: pointer;
+  color: var(--graphite-2);
+}
+.how-to-send ul {
+  margin: 8px 0 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+}
+.freeze-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
 .letter pre {
   margin: 10px 0 0;
   white-space: pre-wrap;

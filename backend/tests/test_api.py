@@ -270,3 +270,34 @@ def test_investigate_traces_the_named_address(client, monkeypatch):
     assert m["eth_usd"] == 1500.0 and m["total_usd"] == pytest.approx(50 * 1500)   # priced on the trace's start date
     client.post("/api/simulate", params={"seed": 7}); client.post("/api/run")     # leave the shared case as found
     assert client.get("/api/money-now").json()["eth_usd"] == 3000.0                  # the simulator's demo price is back
+
+
+def test_freeze_requests_are_tracked_audited_and_counted(client):
+    letters = {f["to"]: f for f in client.get("/api/report").json()["freeze_requests"]}
+    assert "Tether" in letters and letters["Tether"]["state"] is None and letters["Tether"]["kind"] == "issuer"
+    assert any("law enforcement" in line for line in letters["Tether"]["how"])
+    before = client.get("/api/money-now").json()
+    assert client.post("/api/freeze/Tether/maybe").status_code == 400
+    assert client.post("/api/freeze/Nobody/frozen").status_code == 404
+    h = {"X-Analyst": "satya"}
+    assert client.post("/api/freeze/Tether/requested", headers=h).json()["status"] == "requested"
+    r = client.post("/api/freeze/Tether/frozen", headers=h).json()
+    assert r["status"] == "frozen" and r["by"] == "satya"
+    after = client.get("/api/money-now").json()
+    assert after["frozen_usd"] == pytest.approx(letters["Tether"]["usd"])
+    assert after["frozen_possible_usd"] == pytest.approx(before["frozen_possible_usd"] - letters["Tether"]["usd"])
+    assert after["buckets"]["frozen"] == pytest.approx(letters["Tether"]["usd"])
+    assert after["buckets"]["issuer"] == pytest.approx(before["buckets"]["issuer"] - letters["Tether"]["usd"])
+    assert after["buckets"]["nobody"] == pytest.approx(before["buckets"]["nobody"])   # frozen money isn't "nobody's"
+    rep = client.get("/api/report").json()
+    assert next(f for f in rep["freeze_requests"] if f["to"] == "Tether")["state"]["status"] == "frozen"
+    assert rep["audit_ok"]
+    db.put_meta(api.STATE["conn"], "freeze", {})              # leave the shared case as found
+
+
+def test_loading_a_case_clears_freeze_requests():
+    from gt.pipeline import load_case
+    conn = db.connect("mongomock://")
+    db.put_meta(conn, "freeze", {"Tether": {"status": "frozen", "ts": 1, "by": "x"}})
+    load_case(conn, [], [], {}, {}, name="new")
+    assert db.get_meta(conn, "freeze") == {}

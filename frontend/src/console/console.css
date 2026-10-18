@@ -832,3 +832,12 @@
 @keyframes lw-in {
   from { background: var(--ammonium-soft); }
 }
+
+.frozen-row dt,
+.frozen-row dd {
+  color: var(--ammonium);
+  font-weight: 700;
+}
+.fz-frozen {
+  background: repeating-linear-gradient(45deg, var(--ammonium) 0 4px, var(--ammonium-soft) 4px 8px);
+}

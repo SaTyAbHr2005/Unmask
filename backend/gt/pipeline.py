@@ -66,6 +66,7 @@ def load_case(conn, transfers: list[Transfer], posts: list[OsintPost], labels: d
         "name": name, "labels": labels, "bytecodes": bytecodes, "seeds": seeds or [], "eth_usd": eth_usd, "complete": complete,
         "truth": json.loads(json.dumps(dataclasses.asdict(truth), default=sorted)) if truth else None})
     db.put_meta(conn, "results", None)
+    db.put_meta(conn, "freeze", {})    # freeze requests belong to the case they were sent for
 
 
 def load_scenario(conn, s: Scenario, name: str = "Simulated attack") -> None:

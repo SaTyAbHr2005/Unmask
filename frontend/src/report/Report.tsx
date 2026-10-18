@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { analyst, api, type Report as R } from "../api";
+import { analyst, api, type FreezeStatus, type Report as R } from "../api";
 import { date, hours, maskPII, pct, short, usd } from "../lib/format";
 import { setRevealed, useRevealed } from "../lib/privacy";
 import { PrintMark } from "../components/Nav";
 import "./report.css";
+
+const STATUS_TEXT: Record<FreezeStatus, string> = {
+  requested: "Sent, waiting for a reply", acknowledged: "They are looking at it", frozen: "Frozen", declined: "Declined",
+};
+const ACTION_TEXT: Record<FreezeStatus, string> = {
+  requested: "Mark as sent", acknowledged: "They replied", frozen: "Funds frozen", declined: "They declined",
+};
 
 export default function Report() {
   const [r, setR] = useState<R | null>(null);
@@ -26,6 +33,10 @@ export default function Report() {
   const reveal = async () => {
     analyst.set(name);
     try { await api.reveal(reason); setRevealed(true); setReason(""); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  };
+  const mark = async (to: string, status: FreezeStatus) => {
+    analyst.set(name);
+    try { await api.freeze(to, status); setR(await api.report(polished)); } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
   const copy = async (to: string, text: string) => {
     try { await navigator.clipboard.writeText(clean(text)); setCopied(to); setTimeout(() => setCopied(null), 1800); } catch { setCopied(null); }
@@ -93,14 +104,30 @@ export default function Report() {
 
       <section aria-labelledby="d-letters">
         <h2 id="d-letters">Freeze requests</h2>
-        <p className="muted">One letter per party that can freeze funds. Copy, check, send.</p>
+        <p className="muted">
+          One letter per party that can freeze funds. Unmask can't freeze anything itself: only the exchange, Tether or
+          Circle can. Copy the letter, send it through their official channel, and record what happens here.
+        </p>
         {r.freeze_requests.map((f) => (
-          <article key={f.to} className="letter">
+          <article key={f.to} className={`letter st-${f.state?.status ?? "draft"}`}>
             <header>
-              <h3>To {f.to}</h3>
+              <h3>To {f.to} <span className="num">{usd(f.usd)}</span></h3>
+              <span className="freeze-status">
+                {f.state ? `${STATUS_TEXT[f.state.status]} · ${f.state.by}, ${date(f.state.ts)}` : "Draft: not sent yet"}
+              </span>
               <button className="btn no-print" onClick={() => copy(f.to, f.text)}>{copied === f.to ? "Copied" : "Copy letter"}</button>
             </header>
             <pre>{clean(f.text)}</pre>
+            <details className="how-to-send no-print">
+              <summary>How to send this to {f.to}</summary>
+              <ul>{f.how.map((line) => <li key={line}>{line}</li>)}</ul>
+            </details>
+            <div className="freeze-actions no-print" role="group" aria-label={`Record what happened to the request to ${f.to}`}>
+              {(["requested", "acknowledged", "frozen", "declined"] as FreezeStatus[]).map((st) => (
+                <button key={st} className={`btn ${st === "frozen" ? "btn-primary" : ""}`} disabled={f.state?.status === st}
+                        onClick={() => mark(f.to, st)}>{ACTION_TEXT[st]}</button>
+              ))}
+            </div>
           </article>
         ))}
       </section>

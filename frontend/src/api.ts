@@ -21,7 +21,8 @@ export interface Timing {
 }
 export interface MoneyNow {
   total_usd: number; frozen_possible_usd: number; at_exchanges_usd: number; in_mixers_usd: number;
-  unspent_usd: number; returned_usd?: number; exits: Exit[]; timing: Timing; eth_usd?: number;
+  unspent_usd: number; returned_usd?: number; frozen_usd?: number;
+  buckets?: { exchange: number; issuer: number; frozen: number; nobody: number }; exits: Exit[]; timing: Timing; eth_usd?: number;
 }
 export interface GraphNode { id: string; label: string; cluster: number | null; kind: Kind; usd: number; bot_score: number | null }
 export interface GraphEdge { source: string; target: string; kind: string; usd: number; ts: number }
@@ -43,9 +44,14 @@ export interface Deposit {
   pieces: string[]; n_pieces: number; method: string; ts: number;
 }
 export interface Metrics { precision: number; recall: number; f1: number; handle_correct: boolean }
+export type FreezeStatus = "requested" | "acknowledged" | "frozen" | "declined";
+export interface FreezeRequest {
+  to: string; text: string; usd: number; kind: "exchange" | "issuer"; how: string[];
+  state: { status: FreezeStatus; ts: number; by: string } | null;
+}
 export interface Report {
   case: string; generated_ts: number; stolen_usd: number; metrics: Metrics | null; links: Link[]; exits: Exit[];
-  holdings: Holding[]; timing: Timing; deposits: Deposit[]; freeze_requests: { to: string; text: string }[];
+  holdings: Holding[]; timing: Timing; deposits: Deposit[]; freeze_requests: FreezeRequest[];
   audit_ok: boolean; audit_head: string; audit_entries: number; evidence_count: number;
 }
 export interface Wallet {
@@ -110,5 +116,7 @@ export const api = {
   mempool: () => call<{ available: boolean; pending: number; watching: number }>("/mempool"),
   report: (polish = false) => call<Report>(`/report${polish ? "?polish=true" : ""}`),
   exportReport: () => post<Report>("/report/export"),
+  freeze: (to: string, status: FreezeStatus) =>
+    post<{ freezer: string; status: FreezeStatus; ts: number; by: string }>(`/freeze/${encodeURIComponent(to)}/${status}`),
   reveal: (reason: string) => post<{ revealed: boolean }>("/privacy/reveal", { reason }),
 };

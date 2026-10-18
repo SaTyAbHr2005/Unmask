@@ -131,7 +131,7 @@ The problem statement says "automatically scrape" and "the **live** blockchain l
 ## 7. Is it production-ready?
 
 **Already in place:**
-- 197 automated tests.
+- 199 automated tests.
 - Built only on free services: MongoDB Atlas, Etherscan, Alchemy, GitHub, Groq/Gemini, Discord/Telegram.
 - Holds up against real-world failures:
   - retries with backoff on rate limits;
@@ -192,7 +192,7 @@ Open **http://localhost:5173**. With `MONGODB_URI` set in `backend/.env`, cases 
 
 | # | Click | You should see | Say |
 |---|---|---|---|
-| 1 | Open **Home** | The night sky: the real Euler hack, 442 addresses | "This is a real $197M hack. Every dot is a wallet the money touched." |
+| 1 | Open **Home** | The night sky: 1,681 real addresses from four traced hacks, Euler in the middle | "These are four real hacks. Every dot is a wallet the stolen money touched; purple ones are the attackers'." |
 | 2 | Scroll down | Trace → Locate → Freeze, then four real hacks | "It traces, locates the money and drafts the freeze. Here it is on four real hacks, next to what investigators reported." |
 | 3 | **Case file** → Attack `7` → **Load simulated attack** | The graph, a suspect (`ghostfox`), a confidence score, alerts | "This is the $42M attack from the problem statement, with posts. Unmask names the attacker and shows why." |
 | 4 | Open the suspect's evidence | 5 clues with reasons | "Each clue is a likelihood ratio. The latency test: their posts land minutes before the money moves, which happens by chance about 2 in 1,000." |
@@ -201,7 +201,7 @@ Open **http://localhost:5173**. With `MONGODB_URI` set in `backend/.env`, cases 
 | 6b | Click **Watch live**, wait about a minute | New moves appear in the feed; "Just now…" alerts arrive in the queue; the money panel updates by itself | "This is continuous monitoring. Every block it checks the attacker's wallets, reruns and raises alerts. Every 10 minutes it re-scrapes the sources. I only approve." |
 | 7 | Click **Stop watching**, change Attack to `42`, load again | A different attacker, amount and time zone | "Every number is a new attack with an answer key. It's right on all 20 we tested." |
 | 8 | **Real hack** → Harmony → **Load real hack** | $98.1M into Tornado Cash | "Real data: 857 deposits of 100 ETH into Tornado in six days. That's what Elliptic reported." |
-| 9 | **Dossier** | A printable report and freeze letters | "This is what goes to the exchange or to law enforcement." |
+| 9 | **Dossier** → on the Tether letter click **Mark as sent**, then **Funds frozen** | The letter turns green ("Frozen · your name, time"); in the case file, "can still be frozen" drops and a "Frozen" row appears | "Unmask can't freeze crypto, only the exchange or the stablecoin company can. It writes the request with the evidence, says how to send it, and tracks the answer in the audit log." |
 | 10 | (If asked) **Trace any address** | A live trace of their address | "Pick any hack. It's traced live from the blockchain." |
 
 **Before the demo:** load each real hack once so it's cached (seconds instead of minutes). Have the simulated attack loaded before you start.
@@ -242,6 +242,15 @@ Every link stays "suspected" until a person confirms it. Confidence fades withou
 
 **Why is KyberSwap lower than reported?**
 Its money passes through busy trading pools that are too big to load whole. Unmask counts only what it can verify and labels the rest "last seen".
+
+**How does it actually freeze the money?**
+No software can freeze crypto from outside: only the exchange (for deposits), Tether (USDT) or Circle (USDC) can. Unmask:
+1. finds what's freezable and by whom;
+2. predicts where the money goes next;
+3. writes the freeze letter with the evidence, and says how to send it (the company's official security or law-enforcement channel, a police report, help from incident-response groups such as SEAL 911);
+4. records what happened: sent → replied → frozen or declined. Each step goes into the audit chain, and confirmed money moves to "Frozen" in the money panel.
+
+Sending stays manual on purpose: an accusation should never go out automatically.
 
 **Does it cost anything?**
 No. Everything runs on free tiers.

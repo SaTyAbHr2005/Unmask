@@ -19,6 +19,7 @@ Each module has its own detailed guide. Read them in order: each builds on the p
 | M8.1 Real data | ✅ done | All 9 services tested with real keys; four real hacks (Euler, KyberSwap, Harmony, Beanstalk) load from the website and match the public record; fixes for what real data exposed | [M8.1-real-data.md](M8.1-real-data.md) |
 | M8.2 Landing page | ✅ done | New home page: a 3D night sky drawn from the real Euler trace, scroll-pinned Trace → Locate → Freeze, the four real hacks against the public record; the story moved to /how-it-works | [M8.2-landing.md](M8.2-landing.md) |
 | M8.3 Watch mode | ✅ done | One click keeps a case live: checks the attacker's wallets every block, reruns the analysis and raises an alert per new deposit, re-collects posts every 10 min; public addresses no longer count as identity evidence | [M8.3-watch-mode.md](M8.3-watch-mode.md) |
+| M8.4 Freeze tracking | ✅ done | Each freeze letter says how to send it; the analyst records sent → replied → frozen / declined (audited); confirmed money moves to a Frozen total | [M8.4-freeze-tracking.md](M8.4-freeze-tracking.md) |
 | M9 Demo + Deploy | ⏳ next | Demo script, Render + Vercel deploy | — |
 
 ## Big picture

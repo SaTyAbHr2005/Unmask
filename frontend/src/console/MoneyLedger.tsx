@@ -2,8 +2,12 @@ import type { MoneyNow } from "../api";
 import { hours, pct, short, usd } from "../lib/format";
 
 export default function MoneyLedger({ money }: { money: MoneyNow }) {
-  const issuer = money.frozen_possible_usd - money.at_exchanges_usd;
-  const unfreezable = Math.max(money.unspent_usd - issuer, 0);
+  // still-open amounts per party (frozen money moves to its own bucket once the dossier records it)
+  const b = money.buckets;
+  const exchanges = b ? b.exchange : money.at_exchanges_usd;
+  const issuer = b ? b.issuer : money.frozen_possible_usd - money.at_exchanges_usd;
+  const unfreezable = b ? b.nobody : Math.max(money.unspent_usd - issuer, 0);
+  const frozen = b ? b.frozen : 0;
   const t = money.timing;
   const returned = money.returned_usd ?? 0;
   const located = money.at_exchanges_usd + money.unspent_usd + returned;
@@ -12,15 +16,17 @@ export default function MoneyLedger({ money }: { money: MoneyNow }) {
       <h2 id="t-ledger" className="visually-hidden">Where the money is now</h2>
       <p className="ledger-stolen"><span className="num">{usd(money.total_usd)}</span> {money.timing.theft_ts ? "stolen" : "traced through the attacker's wallets"}</p>
       <p className="ledger-freeze"><span className="num">{usd(money.frozen_possible_usd)}</span> can still be frozen</p>
-      <div className="seg" role="img" aria-label={`${usd(money.at_exchanges_usd)} at exchanges, ${usd(issuer)} freezable by the stablecoin issuer, ${usd(unfreezable)} not freezable`}>
-        <span className="fz-ex" style={{ flexGrow: money.at_exchanges_usd }} />
+      <div className="seg" role="img" aria-label={`${usd(frozen)} frozen, ${usd(exchanges)} at exchanges, ${usd(issuer)} freezable by the stablecoin issuer, ${usd(unfreezable)} not freezable`}>
+        <span className="fz-frozen" style={{ flexGrow: frozen }} />
+        <span className="fz-ex" style={{ flexGrow: exchanges }} />
         <span className="fz-usdt" style={{ flexGrow: Math.max(issuer, 0) }} />
         <span className="fz-eth" style={{ flexGrow: unfreezable }} />
       </div>
       <dl className="ledger-rows">
-        <div><dt>At exchanges</dt><dd className="num">{usd(money.at_exchanges_usd)}</dd></div>
+        <div><dt>At exchanges</dt><dd className="num">{usd(exchanges)}</dd></div>
         <div><dt>Freezable by the issuer</dt><dd className="num">{usd(Math.max(issuer, 0))}</dd></div>
         <div><dt>Nobody can freeze</dt><dd className="num">{usd(unfreezable)}</dd></div>
+        {frozen > 0 && <div className="frozen-row"><dt>Frozen (confirmed in the dossier)</dt><dd className="num">{usd(frozen)}</dd></div>}
         <div><dt>Still inside the mixer</dt><dd className="num">{usd(money.in_mixers_usd)}</dd></div>
         {returned > 0 && <div><dt>Given back to the victim</dt><dd className="num">{usd(returned)}</dd></div>}
         <div className="muted-row"><dt>Located</dt><dd className="num">{money.total_usd ? pct(located / money.total_usd) : "—"}</dd></div>

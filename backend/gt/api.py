@@ -283,15 +283,25 @@ def sankey():
 def money_now():
     res = _results()
     if not res:
-        return {"total_usd": 0, "frozen_possible_usd": 0, "at_exchanges_usd": 0, "in_mixers_usd": 0,
+        return {"total_usd": 0, "frozen_possible_usd": 0, "frozen_usd": 0, "at_exchanges_usd": 0, "in_mixers_usd": 0,
                 "unspent_usd": 0, "returned_usd": 0, "exits": [], "timing": {}}
     members, hs, labels = _members(0), res["holdings"], _labels()
     txs = db.select(conn(), Transfer)
     mixed = sum((_value(t) if t.from_addr in members and t.kind == "mixer_in" else 0)
                 - (_value(t) if t.to_addr in members and t.kind == "mixer_out" else 0) for t in txs)
     returned = sum(_value(t) for t in txs if t.from_addr in members and labels.get(t.to_addr) == "victim")
-    return {"total_usd": res["stolen_usd"],
-            "frozen_possible_usd": sum(h["usd"] for h in hs if h["freezable"]),
+    frozen = _frozen_by()
+
+    def bucket(h: dict) -> str:
+        if h["freezable"] and _freezer_name(h) in frozen:
+            return "frozen"
+        if h["freezer"].startswith("exchange:"):
+            return "exchange"
+        return "issuer" if h["freezable"] else "nobody"
+    buckets = {b: sum(h["usd"] for h in hs if bucket(h) == b) for b in ("exchange", "issuer", "frozen", "nobody")}
+    return {"total_usd": res["stolen_usd"], "buckets": buckets,
+            "frozen_possible_usd": sum(h["usd"] for h in hs if h["freezable"] and _freezer_name(h) not in frozen),
+            "frozen_usd": sum(h["usd"] for h in hs if h["freezable"] and _freezer_name(h) in frozen),
             "at_exchanges_usd": sum(h["usd"] for h in hs if h["freezer"].startswith("exchange:")),
             "in_mixers_usd": max(mixed, 0.0),
             "unspent_usd": sum(h["usd"] for h in hs if not h["freezer"].startswith("exchange:")),
@@ -370,19 +380,70 @@ def freeze_request(to: str, holdings: list[dict], links: list[Link], case: str =
     return "\n".join(lines)
 
 
+# ── freeze requests: Unmask drafts them, a person sends them, the exchange or issuer decides ──────────
+
+FREEZE_STATUSES = ("requested", "acknowledged", "frozen", "declined")
+ISSUERS = {"Tether", "Circle"}
+
+
+def _freezer_name(h: dict) -> str:
+    return h["freezer"].removeprefix("exchange:")
+
+
+def _freeze_state() -> dict:
+    return db.get_meta(conn(), "freeze") or {}
+
+
+def _frozen_by() -> set[str]:
+    return {f for f, st in _freeze_state().items() if st["status"] == "frozen"}
+
+
+def send_guidance(to: str) -> list[str]:
+    """How a request like this usually reaches the party that can act. Deliberately generic: no contact details
+    are invented here; use the channel the company publishes on its own website."""
+    if to in ISSUERS:
+        how = [f"{to} freezes (blacklists) {'USDT' if to == 'Tether' else 'USDC'} addresses, usually on a request from law enforcement.",
+               "File a police report first, then send this letter through the law-enforcement or compliance contact "
+               f"published on {to}'s official website, with the addresses and transaction hashes."]
+    else:
+        how = [f"Send it to {to}'s compliance / security team through the security-incident or law-enforcement "
+               "request channel published on its official website.",
+               "Include the deposit address and the transaction hashes, and ask them to freeze the account and keep the "
+               "identity (KYC) and IP records. Exchanges act fastest on a request from the police."]
+    return how + ["During an active hack, crypto security incident-response groups (for example SEAL 911) can help "
+                  "reach exchanges and issuers quickly.",
+                  "Mark the status here as replies come in: every change is recorded in the audit chain."]
+
+
+@router.post("/freeze/{freezer}/{status}")
+def set_freeze(freezer: str, status: str, actor: Analyst = "analyst"):
+    """Record what happened to a freeze request (the sending itself happens outside Unmask)."""
+    if status not in FREEZE_STATUSES:
+        raise HTTPException(400, f"status must be one of {', '.join(FREEZE_STATUSES)}")
+    if freezer not in {_freezer_name(h) for h in _results().get("holdings", []) if h["freezable"]}:
+        raise HTTPException(404, f"no freezable funds at {freezer} in this case")
+    state = _freeze_state()
+    state[freezer] = {"status": status, "ts": int(time.time()), "by": actor}
+    db.put_meta(conn(), "freeze", state)
+    audit(conn(), actor, f"freeze_{status}", freezer)
+    return {"freezer": freezer, **state[freezer]}
+
+
 def _report(polish: bool = False) -> dict:
     res, c = _results(), conn()
     ls = sorted(db.select(c, Link), key=lambda l: -l.score)
     by_freezer: dict[str, list[dict]] = defaultdict(list)
     for h in res.get("holdings", []):
         if h["freezable"]:
-            by_freezer[h["freezer"].removeprefix("exchange:")].append(h)
-    case, stolen = res.get("case", ""), res.get("stolen_usd", 0)
+            by_freezer[_freezer_name(h)].append(h)
+    case, stolen, freeze = res.get("case", ""), res.get("stolen_usd", 0), _freeze_state()
     return {"case": case, "generated_ts": int(time.time()), "stolen_usd": stolen, "metrics": res.get("metrics"),
             "links": [_link_view(l, polish and i < POLISH_TOP) for i, l in enumerate(ls[:5])],
             "exits": res.get("exits", []), "holdings": res.get("holdings", []), "timing": res.get("timing", {}),
             "deposits": [d for d in res.get("deposits", []) if d["n_pieces"] >= 2],
-            "freeze_requests": [{"to": to, "text": freeze_request(to, hs, ls, case, stolen)} for to, hs in by_freezer.items()],
+            "freeze_requests": [{"to": to, "text": freeze_request(to, hs, ls, case, stolen), "usd": sum(h["usd"] for h in hs),
+                                 "kind": "issuer" if to in ISSUERS else "exchange", "how": send_guidance(to),
+                                 "state": freeze.get(to)} for to, hs in by_freezer.items()],
             "audit_ok": verify_audit(c), "audit_head": head(c), "audit_entries": c.auditentry.count_documents({}),
             "evidence_count": c.evidence.count_documents({})}
 
