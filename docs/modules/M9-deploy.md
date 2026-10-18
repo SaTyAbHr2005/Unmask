@@ -26,7 +26,7 @@ Measured on the live site (Render free plan, about 0.1 CPU):
 |---|---|
 | Wake-up after 15 idle minutes | ~25 s (first request) |
 | Load Euler from its recorded trace | 8 s, then 3.5 s to analyse: $191.6M traced, $189.4M returned (same as locally) |
-| Load simulated attack 7 | 27 s, then 41 s to analyse (`forum:ghostfox` 86%, 8 alerts). The analysis saved each clue to Atlas with its own round trip (~300 trips); it now saves them all in one write (`record_many`), which needs a redeploy to take effect. |
+| Load simulated attack 7 | 24 s to load, then **16 s** to analyse (was 41 s): `forum:ghostfox` 86%, 100% precision, 99.8% recall, 8 alerts. The analysis used to save each clue to Atlas with its own round trip (~300 trips); `record_many` now saves them all in one write. |
 | CORS | the engine allows exactly `https://unmask-five.vercel.app` |
 
 ## What was added for deployment
