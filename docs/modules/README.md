@@ -17,6 +17,7 @@ Each module has its own detailed guide. Read them in order: each builds on the p
 | M7.1 Integration pass | ✅ done | Connects 7 built-but-unused features (OSINT collection, mempool, wallet features, bot scores, matrix, subset-sum deposits) plus time-to-freeze and optional AI wording | [M7.1-integration.md](M7.1-integration.md) |
 | M8 Frontend | ✅ done | Scroll-driven 3D story, live case file (3D money graph, suspects, alerts, timeline, clock, routes, matrix), printable dossier with privacy masking | [M8-frontend.md](M8-frontend.md) |
 | M8.1 Real data | ✅ done | All 9 services tested with real keys; four real hacks (Euler, KyberSwap, Harmony, Beanstalk) load from the website and match the public record; fixes for what real data exposed | [M8.1-real-data.md](M8.1-real-data.md) |
+| M8.2 Landing page | ✅ done | New home page: a 3D night sky drawn from the real Euler trace, scroll-pinned Trace → Locate → Freeze, the four real hacks against the public record; the story moved to /how-it-works | [M8.2-landing.md](M8.2-landing.md) |
 | M9 Demo + Deploy | ⏳ next | Demo script, Render + Vercel deploy | — |
 
 ## Big picture

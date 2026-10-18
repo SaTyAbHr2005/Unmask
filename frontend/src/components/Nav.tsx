@@ -16,15 +16,15 @@ export function PrintMark({ size = 22 }: { size?: number }) {
 
 export default function Nav() {
   const { pathname } = useLocation();
-  const night = pathname === "/";
+  const night = pathname === "/" || pathname === "/how-it-works";
   return (
     <header className={`nav ${night ? "nav-night" : ""}`}>
-      <NavLink to="/" className="nav-mark" aria-label="Unmask, back to the story">
+      <NavLink to="/" className="nav-mark" aria-label="Unmask, home">
         <PrintMark />
         <span>Unmask</span>
       </NavLink>
       <nav aria-label="Main">
-        <NavLink to="/" end>The story</NavLink>
+        <NavLink to="/how-it-works">How it works</NavLink>
         <NavLink to="/case">Case file</NavLink>
         <NavLink to="/report">Dossier</NavLink>
       </nav>

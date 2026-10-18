@@ -1,7 +1,7 @@
 # M8: Frontend (the story, the case file, the dossier)
 
 ## In one sentence
-M8 is the website: a **scroll-driven 3D story** that explains the problem to judges, a **case file** where an investigator works the case live, and a **printable dossier** with freeze letters, evidence and the audit record.
+M8 is the website: a **scroll-driven 3D story** that explains the problem (now at `/how-it-works`; the home page is the M8.2 landing page), a **case file** where an investigator works the case live, and a **printable dossier** with freeze letters, evidence and the audit record.
 
 ## Design concept: "Latent"
 In forensics, a **latent print** is a fingerprint that is invisible until it is *developed* with powder or reagents. That is exactly what Unmask does to a hacker, so the whole site is built on it: the story opens in the dark ("2:14 AM, nothing visible") and, as you scroll, the evidence *develops* into daylight and a name.
@@ -27,7 +27,7 @@ In forensics, a **latent print** is a fingerprint that is invisible until it is 
 
 ## Pages
 
-### 1. The story (`/`), [src/story/](../../frontend/src/story)
+### 1. The story (`/how-it-works`; it was the home page until M8.2), [src/story/](../../frontend/src/story)
 Seven chapters that follow the problem statement, driven by scroll:
 
 | Chapter | On screen | The 3D field |

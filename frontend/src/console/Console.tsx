@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { Orb } from "@yogesharc/thinking-orbs";
 import { halftone } from "@yogesharc/thinking-orbs/renders";
 import { api, type Link } from "../api";
@@ -34,9 +34,18 @@ export default function Console() {
   const [replays, setReplays] = useState<{ id: string; name: string; source: string }[]>([]);
   const [replay, setReplay] = useState("");
 
+  // the landing page links here with ?hack=<replay> (load it) or ?trace=1 (open the address form)
+  const [params, setParams] = useSearchParams();
+  const asked = params.get("hack");
   useEffect(() => {
-    api.replays().then((r) => { setReplays(r); setReplay((cur) => cur || r[0]?.id || ""); }).catch(() => setReplays([]));
-  }, []);
+    api.replays().then((r) => { setReplays(r); setReplay((cur) => cur || (r.some((x) => x.id === asked) ? asked! : r[0]?.id) || ""); })
+      .catch(() => setReplays([]));
+  }, [asked]);
+  useEffect(() => {
+    if (!asked || !replays.some((r) => r.id === asked)) return;
+    setParams({}, { replace: true });
+    c.loadReplay(asked);
+  }, [asked, replays]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // charts refetch whenever the case data changes
   useEffect(() => { if (c.data) { setVersion((v) => v + 1); setPolished(null); } }, [c.data]);
@@ -86,7 +95,7 @@ export default function Console() {
         </div>
       </header>
 
-      <details className="trace-form">
+      <details className="trace-form" open={params.get("trace") === "1" || undefined}>
         <summary>Trace any address</summary>
         <form
           onSubmit={(e) => {

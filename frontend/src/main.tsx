@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import "./styles/index.css";
 import Nav from "./components/Nav";
 
+const Landing = lazy(() => import("./landing/Landing"));
 const Story = lazy(() => import("./story/Story"));
 const Console = lazy(() => import("./console/Console"));
 const Report = lazy(() => import("./report/Report"));
@@ -15,10 +16,11 @@ createRoot(document.getElementById("root")!).render(
     <Nav />
     <Suspense fallback={null}>
       <Routes>
-        <Route path="/" element={<Story />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/how-it-works" element={<Story />} />
         <Route path="/case" element={<Console />} />
         <Route path="/report" element={<Report />} />
-        <Route path="*" element={<Story />} />
+        <Route path="*" element={<Landing />} />
       </Routes>
     </Suspense>
   </BrowserRouter>,
