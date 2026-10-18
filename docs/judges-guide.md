@@ -162,6 +162,8 @@ The problem statement says "automatically scrape" and "the **live** blockchain l
 
 ## 8. Run it and test it yourself
 
+**Live site:** https://unmask-five.vercel.app. Open https://unmask-api.onrender.com/api/health 2–3 minutes before presenting to wake the free server, then load attack 7 (about a minute on the free plan) so it's ready.
+
 ### First time only (from the `HackForge` folder)
 
 ```bash

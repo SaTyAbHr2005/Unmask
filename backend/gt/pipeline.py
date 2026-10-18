@@ -18,7 +18,7 @@ from gt.config import set_eth_usd, usd
 from gt.defense.alerts import queue
 from gt.defense.freeze import ExitPrediction, Holding, holdings, predict_exits
 from gt.defense.guards import find_decoys, prewarn
-from gt.fusion.evidence import record
+from gt.fusion.evidence import record_many
 from gt.fusion.score import build_signals, link_for
 from gt.osint.extract import extract
 from gt.osint.style import resolve_identities
@@ -186,9 +186,11 @@ def run(conn, seeds: set[str] | None = None) -> Results:
             continue
         freshest = max(max(p.ts for p in ps), last_cluster_ts)       # newest activity on either side of the link
         link = link_for(ATTACKER, identity, signals, age_s=now_ts - freshest, now_ts=now_ts)
-        link.evidence = [record(conn, s, "signal") for s in signals]
         link.status = decided.get(link.link_id, link.status)
         links.append(link)
+    hashes = iter(record_many(conn, [s for l in links for s in l.signals], "signal"))   # one write for all clues
+    for l in links:
+        l.evidence = [next(hashes) for _ in l.signals]
     links.sort(key=lambda l: -l.score)
     conn.link.delete_many({})
     db.insert(conn, links)

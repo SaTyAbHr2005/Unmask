@@ -11,6 +11,8 @@ Unmask is a quantitative OSINT and blockchain engine for tracking crypto hacks. 
 
 Built for the "Ghost Attacks" hackathon problem statement.
 
+**Live:** https://unmask-five.vercel.app (engine: https://unmask-api.onrender.com, free plan: the first request after 15 idle minutes takes ~25 s). Deploy guide: [docs/modules/M9-deploy.md](docs/modules/M9-deploy.md).
+
 ## How it works
 
 ```

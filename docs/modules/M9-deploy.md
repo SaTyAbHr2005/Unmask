@@ -12,6 +12,23 @@ The engine runs on **Render** (free web service, from `render.yaml`), the websit
                        └──► Etherscan · Alchemy · GitHub · RSS · Groq/Gemini · Discord/Telegram (free tiers)
 ```
 
+## Live
+
+| Part | Address |
+|---|---|
+| Website (Vercel) | **https://unmask-five.vercel.app** |
+| Engine (Render) | **https://unmask-api.onrender.com** (health: `/api/health` → `{"ok":true,"db":"mongo"}`) |
+| Database | MongoDB Atlas (the same database your laptop's `backend/.env` points at: a case loaded locally also shows on the live site, and the other way round) |
+
+Measured on the live site (Render free plan, about 0.1 CPU):
+
+| Action | Time |
+|---|---|
+| Wake-up after 15 idle minutes | ~25 s (first request) |
+| Load Euler from its recorded trace | 8 s, then 3.5 s to analyse: $191.6M traced, $189.4M returned (same as locally) |
+| Load simulated attack 7 | 27 s, then 41 s to analyse (`forum:ghostfox` 86%, 8 alerts). The analysis saved each clue to Atlas with its own round trip (~300 trips); it now saves them all in one write (`record_many`), which needs a redeploy to take effect. |
+| CORS | the engine allows exactly `https://unmask-five.vercel.app` |
+
 ## What was added for deployment
 
 | File | Why |

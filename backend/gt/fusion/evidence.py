@@ -16,11 +16,19 @@ def _canonical(obj) -> str:
 
 def record(conn, obj, kind: str, source_url: str = "") -> str:
     """Store obj as evidence (once) and return its sha256. Same content → same hash, no duplicate."""
-    payload = _canonical(obj)
-    h = hashlib.sha256(payload.encode()).hexdigest()
-    if not conn.evidence.find_one({"_id": h}):
-        db.insert(conn, [Evidence(h, kind, source_url, int(time.time()), payload)])
-    return h
+    return record_many(conn, [obj], kind, source_url)[0]
+
+
+def record_many(conn, objs: list, kind: str, source_url: str = "") -> list[str]:
+    """record() for many objects in two database round trips. One find + insert per clue made a simulated case's
+    analysis take 41 s on the deployed server (Atlas is a network hop away); this takes about the same as one."""
+    payloads = [_canonical(o) for o in objs]
+    hashes = [hashlib.sha256(p.encode()).hexdigest() for p in payloads]
+    have = {d["_id"] for d in conn.evidence.find({"_id": {"$in": hashes}}, {"_id": 1})}
+    now = int(time.time())
+    new = {h: p for h, p in zip(hashes, payloads) if h not in have}
+    db.insert(conn, [Evidence(h, kind, source_url, now, p) for h, p in new.items()])
+    return hashes
 
 
 def _entry_id(prev_hash: str, actor: str, action: str, target: str, ts: int) -> str:
