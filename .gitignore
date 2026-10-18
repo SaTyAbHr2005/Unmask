@@ -11,3 +11,6 @@ data/*.session
 .claude/
 *.tsbuildinfo
 .frontend-slides/
+
+# the presentation deck (PPTX, PDF, HTML) stays local, not on GitHub
+presentation/
