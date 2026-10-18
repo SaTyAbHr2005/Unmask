@@ -9,12 +9,12 @@ import sky from "./euler-sky.json";
 export interface SkyState { reveal: number; dive: number; step: number; mouse: THREE.Vector2; visible: boolean }
 
 const KINDS = ["other", "attacker", "victim", "mixer", "exchange"] as const;
-const COLOR = ["#8d879a", "#e07cc8", "#62c2a6", "#e3a948", "#f0c76a"];
+const COLOR = ["#b9b0cc", "#e07cc8", "#62c2a6", "#e3a948", "#f0c76a"];
 // how bright each kind is at step 0..3 (other, attacker, victim, mixer, exchange)
 const WEIGHTS = [
-  [0.4, 1.1, 1, 1, 1],
-  [0.1, 1.5, 0.25, 0.25, 0.25],
-  [0.1, 0.35, 1.6, 1.6, 1.6],
+  [0.7, 1.1, 1, 1, 1],
+  [0.18, 1.5, 0.25, 0.25, 0.25],
+  [0.18, 0.35, 1.6, 1.6, 1.6],
   [0.08, 0.25, 0.35, 0.5, 2.0],
 ];
 const SCALE = 5.2;
@@ -39,7 +39,7 @@ const fragment = /* glsl */ `
   void main() {
     float d = length(gl_PointCoord - 0.5);
     float core = smoothstep(0.5, 0.0, d);
-    float glow = pow(core, 2.2) + 0.35 * pow(core, 0.8);
+    float glow = pow(core, 2.2) + 0.3 * pow(core, 0.8) + 0.6 * smoothstep(0.12, 0.0, d);   // halo + a crisp star core
     gl_FragColor = vec4(vColor * glow, glow * vAlpha);
   }`;
 
@@ -54,7 +54,7 @@ function useGraph() {
       pos.set(node.p.map((v) => v * SCALE), i * 3);
       c.set(COLOR[Math.max(k, 0)]).toArray(col, i * 3);
       kind[i] = Math.max(k, 0);
-      size[i] = (k > 0 ? 70 : 42) + Math.log10(1 + node.u) * (k > 0 ? 9 : 5);
+      size[i] = k > 0 ? 15 + Math.log10(1 + node.u) * 1.5 : 8.5 + Math.log10(1 + node.u) * 0.5;   // ≈ px at the hero's distance
       delay[i] = k > 0 ? 0.15 + 0.25 * (i / n) : 0.05 + 0.7 * ((i * 0.6180339) % 1);   // the cluster lands first
     });
     const lines = new Float32Array(sky.edges.length * 6), lcol = new Float32Array(sky.edges.length * 6);
@@ -78,6 +78,7 @@ function Scene({ state, tags }: { state: SkyState; tags: React.RefObject<(HTMLEl
   const g = useGraph();
   const group = useRef<THREE.Group>(null!);
   const lineMat = useRef<THREE.LineBasicMaterial>(null!);
+  const pointMat = useRef<THREE.ShaderMaterial>(null!);
   const { camera, size, gl } = useThree();
   const uniforms = useMemo(() => ({
     uReveal: { value: 0 }, uTime: { value: 0 }, uPixel: { value: 1 }, uW: { value: [...WEIGHTS[0]] },
@@ -89,7 +90,7 @@ function Scene({ state, tags }: { state: SkyState; tags: React.RefObject<(HTMLEl
 
   useFrame((_, dt) => {
     if (!state.visible) return;
-    const u = uniforms;
+    const u = pointMat.current.uniforms;   // the material's own copy: R3F doesn't keep our object
     u.uTime.value += dt;
     u.uReveal.value = state.reveal * 1.25;
     u.uPixel.value = size.height * gl.getPixelRatio() * 0.012;
@@ -128,7 +129,7 @@ function Scene({ state, tags }: { state: SkyState; tags: React.RefObject<(HTMLEl
           <bufferAttribute attach="attributes-aSize" args={[g.size, 1]} />
           <bufferAttribute attach="attributes-aDelay" args={[g.delay, 1]} />
         </bufferGeometry>
-        <shaderMaterial vertexShader={vertex} fragmentShader={fragment} uniforms={uniforms}
+        <shaderMaterial ref={pointMat} vertexShader={vertex} fragmentShader={fragment} uniforms={uniforms}
                         transparent depthWrite={false} blending={THREE.AdditiveBlending} />
       </points>
       <lineSegments>

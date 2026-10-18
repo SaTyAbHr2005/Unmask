@@ -6,12 +6,14 @@ import { usd } from "../lib/format";
 import Sky, { SKY_TAGS, sky, type SkyState } from "./Sky";
 import "./landing.css";
 
+const euler = sky.nodes.filter((n) => n.c === 0);   // the sky also holds the other three hacks
+
 const HEADLINE = ["EVERY HACK", "LEAVES", "PRINTS."];
 
 const STEPS = [
   {
     n: "01", title: "Trace", lead: "Finds every wallet the attacker controls.",
-    body: `Starting from one address, Unmask follows the money hop by hop and groups the wallets that share funding, timing and gas. On Euler: ${sky.nodes.filter((n) => n.k === "attacker").length} attacker wallets among ${sky.nodes.length} addresses touched.`,
+    body: `Starting from one address, Unmask follows the money hop by hop and groups the wallets that share funding, timing and gas. On Euler: ${euler.filter((n) => n.k === "attacker").length} attacker wallets among ${euler.length} addresses touched.`,
   },
   {
     n: "02", title: "Locate", lead: "Shows where the money is right now.",
@@ -170,6 +172,7 @@ export default function Landing() {
           <span className="mono">Euler 2023 · real trace</span>
           <span className="num">{usd(sky.traced)}</span>
           <span className="mono back">{usd(sky.returned)} given back</span>
+          <span className="mono sky-count">{sky.nodes.length.toLocaleString()} real addresses from {sky.cases.length} traced hacks</span>
         </div>
         <span className="scroll-cue mono reveal" aria-hidden>Scroll</span>
       </section>

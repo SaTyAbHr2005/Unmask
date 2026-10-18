@@ -161,6 +161,10 @@ body:has(.landing) .nav-night:not([data-day="true"]) {
   color: var(--back);
   opacity: 1;
 }
+.hero-count .sky-count {
+  font-size: 0.62rem;
+  opacity: 0.45;
+}
 .scroll-cue {
   position: absolute;
   left: 50%;
