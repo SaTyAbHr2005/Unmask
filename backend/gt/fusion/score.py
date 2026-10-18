@@ -35,7 +35,8 @@ def _tz_distance(a: int, b: int) -> int:
 
 
 def build_signals(cluster_wallets: set[str], identity_posts: list[OsintPost], entities: list[Entity],
-                  transfers: list[Transfer], bytecodes: dict[str, str]) -> list[Signal]:
+                  transfers: list[Transfer], bytecodes: dict[str, str], public: set[str] = frozenset(),
+                  mentioned_by: dict[str, int] | None = None) -> list[Signal]:
     """Statistical tests (timing, time zone, code) are reported whenever there is enough data — even when
     neutral. Mention clues (address in a post, handle in an on-chain message) only when they match:
     not being mentioned proves nothing. Missing inputs produce no signal at all."""
@@ -62,10 +63,16 @@ def build_signals(cluster_wallets: set[str], identity_posts: list[OsintPost], en
                           + (" — same time zone" if same else " — different time zones")))
 
     post_ids = {p.post_id for p in identity_posts}
-    mentioned = sorted({e.value for e in entities if e.post_id in post_ids and e.kind == "address"} & cluster_wallets)
+    # knowing a wallet nobody else knows is a clue; quoting a famous one is not. The seeds come from public reports,
+    # and an address many people posted is public knowledge (Euler: researchers' GitHub code quoting the hacker's
+    # address scored them 23% "suspected")
+    mentioned = sorted({e.value for e in entities if e.post_id in post_ids and e.kind == "address"}
+                       & cluster_wallets - set(public))
     if mentioned:
-        out.append(Signal("address_mention", 30.0,
-                          f"posted {len(mentioned)} address(es) belonging to the cluster, e.g. {mentioned[0][:12]}…"))
+        n = min((mentioned_by or {}).get(a, 1) for a in mentioned)     # the least-shared address they posted
+        detail = f"posted {len(mentioned)} address(es) belonging to the cluster, e.g. {mentioned[0][:12]}…"
+        out.append(Signal("address_mention", 30.0 if n <= 1 else max(1.0, 30.0 / n ** 2),
+                          detail if n <= 1 else f"{detail} — {n} people posted it, so it is public knowledge more than a clue"))
 
     src = set().union(*(selectors_from_source(p.text) for p in identity_posts if "function" in p.text))
     codes = [selectors_from_bytecode(c) for a, c in bytecodes.items() if a in cluster_wallets]

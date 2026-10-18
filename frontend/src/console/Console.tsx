@@ -11,6 +11,7 @@ import MoneyLedger from "./MoneyLedger";
 import RouteSankey from "./RouteSankey";
 import Suspects from "./Suspects";
 import Timeline from "./Timeline";
+import LiveWatch from "./LiveWatch";
 import { useCase, type Engine } from "./useCase";
 import WalletDrawer from "./WalletDrawer";
 import "./console.css";
@@ -158,6 +159,8 @@ export default function Console() {
         </section>
       ) : (
         <>
+          <LiveWatch onRerun={c.refresh} caseName={d.report.case} />
+
           <section className="bench" aria-label="Money flow">
             <div className="bench-graph">
               <Suspense fallback={<div className="graph3d" />}>

@@ -1,8 +1,6 @@
-import asyncio
 
 import httpx
 
-from gt import db
 from gt.chain import live
 from gt.schema import Transfer
 
@@ -62,30 +60,6 @@ def test_pending_count():
     assert live.pending_count({"0xaa"}, broken) == 0
 
 
-def test_live_loop_stores_and_queues():
-    conn = db.connect("mongomock://")
-    q: asyncio.Queue = asyncio.Queue()
-    asyncio.run(live.live_loop(conn, {"0xaa"}, interval_s=0, queue=q, rpc=fake_rpc(head="0xc"), max_iters=1,
-                               start_block=10))
-    assert db.select(conn, Transfer)[0].tx_hash == "0xhash"
-    assert q.get_nowait().tx_hash == "0xhash"
-
-
 def test_default_rpc_without_key_is_safe(monkeypatch):
     monkeypatch.setattr(live, "env", lambda k: None)
     assert live.poll_once({"0xa"}, 10) == ([], 10)
-
-
-def test_live_loop_never_scans_from_genesis_when_head_read_fails():
-    conn = db.connect("mongomock://")
-    ok = fake_rpc(head="0x64")
-    state = {"n": 0}
-
-    def flaky(method, params):
-        state["n"] += 1
-        if state["n"] == 1:
-            raise httpx.ConnectError("down")
-        return ok(method, params)
-    asyncio.run(live.live_loop(conn, {"0xaa"}, interval_s=0, rpc=flaky, max_iters=2))
-    starts = [int(p[0]["fromBlock"], 16) for m, p in ok.calls if m == "alchemy_getAssetTransfers"]
-    assert starts and min(starts) >= 99

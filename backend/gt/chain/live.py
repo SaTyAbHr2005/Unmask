@@ -1,22 +1,22 @@
 """Live mode: poll Alchemy for new transfers touching watched wallets, plus a lite mempool count."""
-import asyncio
 import logging
 
 import httpx
 
-from gt import db
 from gt.chain.normalize import norm_addr, to_utc, token_asset
 from gt.config import env
 from gt.schema import Transfer
 
 log = logging.getLogger(__name__)
+_client: list[httpx.Client] = []
 
 
 def _rpc(method: str, params: list):
     key = env("ALCHEMY_API_KEY")
     if not key:
         raise httpx.HTTPError("ALCHEMY_API_KEY not set")
-    r = httpx.post(f"https://eth-mainnet.g.alchemy.com/v2/{key}",
+    _client or _client.append(httpx.Client())        # one kept-alive connection: a new one per call took ~1 s each
+    r = _client[0].post(f"https://eth-mainnet.g.alchemy.com/v2/{key}",
                    json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params}, timeout=20)
     body = r.json()
     if "error" in body:
@@ -61,22 +61,3 @@ def pending_count(watch: set[str], rpc=None) -> int:
     except (httpx.HTTPError, KeyError, ValueError, TypeError, AttributeError) as e:
         log.warning("pending scan failed: %r", e)
         return 0
-
-
-async def live_loop(conn, watch: set[str], interval_s: int = 12, queue: asyncio.Queue | None = None,
-                    rpc=None, max_iters: int | None = None, start_block: int | None = None) -> None:
-    """Forever (or max_iters times): poll → store → push to the SSE queue."""
-    last = start_block
-    i = 0
-    while max_iters is None or i < max_iters:
-        if last is None:  # start at the current head; never fall back to block 0 (would scan the whole chain)
-            _, head = await asyncio.to_thread(poll_once, set(), 0, rpc)  # empty watch = just read the head
-            last = head - 1 if head else None
-        new, last = ([], last) if last is None else await asyncio.to_thread(poll_once, watch, last, rpc)
-        if new:
-            db.insert(conn, new)
-            for t in new:
-                if queue is not None:
-                    queue.put_nowait(t)
-        i += 1
-        await asyncio.sleep(interval_s)

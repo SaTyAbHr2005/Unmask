@@ -103,11 +103,35 @@ def test_replay_name_is_validated(client):
     assert any(c["id"] == "euler-2023" and c["source"].startswith("https://") for c in cases)
 
 
-def test_live_requires_key_and_valid_addresses(client, monkeypatch):
-    monkeypatch.setattr(api, "env", lambda k: None)
-    assert client.post("/api/live/start", json={"watch": ["0x" + "a" * 40]}).status_code == 400
-    monkeypatch.setattr(api, "env", lambda k: "key")
+def test_watch_mode_start_status_stop(client, monkeypatch):
+    monkeypatch.setattr(api, "env", lambda k: None)                       # a simulated case needs no key
+    monkeypatch.setattr(api, "simulated_source", lambda conn: (lambda: []))  # leave the shared case as it is
+
+    async def no_posts(body):
+        return {"rss": 0, "github": 0, "telegram": 0}
+    monkeypatch.setattr(api, "_collect_posts", no_posts)
     assert client.post("/api/live/start", json={"watch": ["not-an-address"]}).status_code == 422
+    with TestClient(api.app) as c:          # one event loop for all requests, like a real server, so the task lives on
+        r = c.post("/api/live/start").json()
+        assert r["on"] and r["source"] == "simulated" and 0 < r["watching"] <= 10
+        assert c.get("/api/live/status").json()["on"]
+        assert c.post("/api/live/stop").json()["on"] is False
+
+
+def test_watching_needs_a_case_and_a_key_for_real_ones(monkeypatch):
+    from gt.pipeline import load_case
+    from gt.schema import Transfer
+    shared = api.STATE["conn"]
+    api.STATE["conn"] = db.connect("mongomock://")
+    try:
+        c = TestClient(api.app)
+        assert c.post("/api/live/start").status_code == 400                  # nothing loaded
+        load_case(api.STATE["conn"], [Transfer("0x1", "eth", 1, "0xa", "0xb", "ETH", 1.0)], [], {}, {}, name="real")
+        monkeypatch.setattr(api, "env", lambda k: None)
+        r = c.post("/api/live/start")
+        assert r.status_code == 400 and "ALCHEMY" in r.json()["detail"]
+    finally:
+        api.STATE["conn"] = shared
 
 
 def test_live_stream_emits_queued_transfer(client):

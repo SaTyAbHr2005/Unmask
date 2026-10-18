@@ -171,10 +171,16 @@ def run(conn, seeds: set[str] | None = None) -> Results:
     by_identity: dict[str, list[OsintPost]] = {}
     for p in posts:
         by_identity.setdefault(ids[f"{p.source}:{p.author}"], []).append(p)
+    who = {p.post_id: ids[f"{p.source}:{p.author}"] for p in posts}
+    mentioned_by: dict[str, set[str]] = {}
+    for e in entities:
+        if e.kind == "address" and e.post_id in who:
+            mentioned_by.setdefault(e.value, set()).add(who[e.post_id])
     decided = {l.link_id: l.status for l in db.select(conn, Link) if l.status in ("confirmed", "rejected")}
     links = []
     for identity, ps in by_identity.items():
-        signals = build_signals(cluster0, ps, entities, transfers, bytecodes)
+        signals = build_signals(cluster0, ps, entities, transfers, bytecodes, seeds,
+                                {a: len(v) for a, v in mentioned_by.items()})
         if not signals:
             continue
         freshest = max(max(p.ts for p in ps), last_cluster_ts)       # newest activity on either side of the link

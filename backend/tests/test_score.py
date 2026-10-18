@@ -92,3 +92,13 @@ def test_busiest_noise_identity_scores_low(case):
 
 def test_missing_inputs_emit_nothing():
     assert build_signals(set(), [], [], [], {}) == []
+
+
+def test_quoting_a_public_or_widely_posted_address_is_not_evidence():
+    from gt.schema import Entity, OsintPost
+    post = OsintPost("p1", "github", "researcher", 100, "attacker 0xaa")
+    ents = [Entity("e1", "p1", "address", "0xaa")]
+    lr = lambda **kw: next((g.lr for g in build_signals({"0xaa"}, [post], ents, [], {}, **kw) if g.name == "address_mention"), None)
+    assert lr() == 30.0                                   # only they posted it: a clue
+    assert lr(public={"0xaa"}) is None                    # a seed from the post-mortem: anyone can quote it
+    assert lr(mentioned_by={"0xaa": 3}) < 5               # three people posted it: public knowledge

@@ -26,6 +26,12 @@ export interface MoneyNow {
 export interface GraphNode { id: string; label: string; cluster: number | null; kind: Kind; usd: number; bot_score: number | null }
 export interface GraphEdge { source: string; target: string; kind: string; usd: number; ts: number }
 export interface Graph { nodes: GraphNode[]; edges: GraphEdge[] }
+export interface WatchStatus {
+  on: boolean; source?: "simulated" | "blockchain"; watching: number; started_ts: number; stops_ts: number;
+  checks: number; new_transfers: number; reruns: number; last_check_ts: number | null; last_posts_ts: number | null;
+  posts_found: number; error: string | null;
+  recent: { ts: number; from: string; to: string; asset: string; amount: number; to_label: string }[];
+}
 export type TimelineEvent =
   | { ts: number; type: "tx"; who: string; usd: number; kind: string; cluster: number }
   | { ts: number; type: "post"; who: string; text: string; url: string };
@@ -98,6 +104,9 @@ export const api = {
   approve: (id: string) => post<Alert>(`/alerts/${encodeURIComponent(id)}/approve`),
   dismiss: (id: string) => post<Alert>(`/alerts/${encodeURIComponent(id)}/dismiss`),
   wallet: (addr: string) => call<Wallet>(`/wallet/${addr}`),
+  liveStart: () => post<WatchStatus>("/live/start"),
+  liveStop: () => post<WatchStatus>("/live/stop"),
+  liveStatus: () => call<WatchStatus>("/live/status"),
   mempool: () => call<{ available: boolean; pending: number; watching: number }>("/mempool"),
   report: (polish = false) => call<Report>(`/report${polish ? "?polish=true" : ""}`),
   exportReport: () => post<Report>("/report/export"),

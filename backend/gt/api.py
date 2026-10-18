@@ -20,7 +20,7 @@ from gt.analytics.behavior import infer_utc_offset
 from gt.analytics.features import activity_matrix, wallet_features
 from gt.chain.etherscan import CHAINS, get_code, trace
 from gt.chain.labels import load_labels
-from gt.chain.live import live_loop, pending_count
+from gt.chain.live import pending_count
 from gt.chain.normalize import norm_addr
 from gt.chain.prices import eth_usd_on
 from gt.config import DATA_DIR, GITHUB_QUERIES, RSS_FEEDS, TELEGRAM_CHANNELS, env, eth_usd, set_eth_usd, usd
@@ -33,12 +33,13 @@ from gt.osint.style import resolve_identities
 from gt.pipeline import load_case, load_results, load_scenario, run, third_party_contracts
 from gt.schema import Alert, Link, OsintPost, Transfer
 from gt.simulator import simulate, variant
+from gt.watch import MAX_WALLETS, chain_source, new_status, simulated_source, watch_loop
 
 app = FastAPI(title="Unmask API", description="Quantitative OSINT + blockchain engine")
 app.add_middleware(CORSMiddleware, allow_methods=["*"], allow_headers=["*"],
                    allow_origins=[o.strip() for o in (env("FRONTEND_ORIGINS") or "http://localhost:5173").split(",")])
 router = APIRouter(prefix="/api")
-STATE: dict = {"conn": None, "live_task": None}
+STATE: dict = {"conn": None, "live_task": None, "watch": {"on": False}}
 LIVE_QUEUE: asyncio.Queue = asyncio.Queue()
 CHAIN_IDS = {v: k for k, v in CHAINS.items()}
 Analyst = Annotated[str, Header(alias="X-Analyst")]   # ponytail: self-declared name, no auth — add login before real use
@@ -409,6 +410,10 @@ class OsintCollect(BaseModel):
 @router.post("/osint/collect")
 async def osint_collect(body: OsintCollect):
     """Pull public text into the current case (then POST /run to rescore). Never fails on a dead source."""
+    return await _collect_posts(body)
+
+
+async def _collect_posts(body: OsintCollect) -> dict:
     queries = list(body.github_queries or GITHUB_QUERIES)
     if body.search_case_addresses:
         queries += _results().get("seeds", [])[:3]   # does anyone mention the attacker's wallet?
@@ -491,17 +496,50 @@ async def mempool():
 
 
 class LiveStart(BaseModel):
-    watch: list[Address]
+    watch: list[Address] | None = None     # default: the attacker cluster's busiest wallets
 
 
 @router.post("/live/start")
-async def live_start(body: LiveStart):
-    if not env("ALCHEMY_API_KEY"):
-        raise HTTPException(400, "ALCHEMY_API_KEY is not set")
+async def live_start(body: LiveStart | None = None):
+    """Watch mode: check for new transfers every block, rerun the engine when something moves (new alerts land in
+    the approval queue), and re-collect public posts every 10 minutes. Stops by itself after 30 minutes."""
+    meta = db.get_meta(conn(), "scenario") or {}
+    if not meta.get("name"):
+        raise HTTPException(400, "Load a case first")
+    simulated = meta.get("truth") is not None
+    if not simulated and not env("ALCHEMY_API_KEY"):
+        raise HTTPException(400, "Watching a real case needs ALCHEMY_API_KEY in backend/.env")
+    res = _results()
+    busiest = [h["address"] for h in res.get("holdings", []) if not h["freezer"].startswith("exchange:")]
+    watch = {norm_addr(a) for a in (body.watch if body and body.watch else
+                                     list(dict.fromkeys(busiest + sorted(_members(0)))))[:MAX_WALLETS]}
+    if not watch:
+        raise HTTPException(400, "Run the analysis first: there are no attacker wallets to watch yet")
+    live_stop()
+    status = STATE["watch"] = new_status("simulated" if simulated else "blockchain", len(watch))
+
+    async def collect() -> int:
+        r = await _collect_posts(OsintCollect())
+        return r["rss"] + r["github"] + r["telegram"]
+
+    check = simulated_source(conn()) if simulated else chain_source(watch)
+    STATE["live_task"] = asyncio.create_task(
+        watch_loop(conn(), check, lambda: run(conn()), collect, status, meta["name"], queue=LIVE_QUEUE))
+    return status
+
+
+@router.post("/live/stop")
+def live_stop():
     if STATE["live_task"]:
         STATE["live_task"].cancel()
-    STATE["live_task"] = asyncio.create_task(live_loop(conn(), {norm_addr(a) for a in body.watch}, queue=LIVE_QUEUE))
-    return {"watching": len(body.watch)}
+        STATE["live_task"] = None
+    STATE["watch"]["on"] = False
+    return STATE["watch"]
+
+
+@router.get("/live/status")
+def live_status():
+    return STATE["watch"]
 
 
 @router.get("/live")
