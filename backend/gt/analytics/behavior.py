@@ -24,8 +24,10 @@ def bot_score(gaps_s: list[float], amounts: list[float]) -> float | None:
     if len(gaps_s) < 10:
         return None
     gaps = np.asarray(gaps_s, dtype=float)
-    parts = [1 - stats.kstest(gaps, "expon", args=(0, gaps.mean())).pvalue,
-             1 - _round_frac(amounts)]
+    # every move in the same second (one block of a contract's batch) is as machine-like as it gets;
+    # kstest with scale 0 returns NaN, which broke the graph's JSON (KyberSwap)
+    ks = 1.0 if gaps.mean() == 0 else 1 - stats.kstest(gaps, "expon", args=(0, gaps.mean())).pvalue
+    parts = [ks, 1 - _round_frac(amounts)]
     if len([a for a in amounts if a > 0]) >= 20:
         parts.append(1 - _benford_p(amounts))
     return float(np.mean(parts))

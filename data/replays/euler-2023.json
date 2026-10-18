@@ -5,7 +5,16 @@
     "0xb66cd966670d962c227b3eaba30a872dbfb995db",
     "0xc66dfa84bc1b93df194bd964a41282da65d73c9a"
   ],
-  "chainids": [1],
-  "window": ["2023-03-12", "2023-04-10"],
+  "victims": [
+    "0xcad001c30e96765ac90307669d578219d4fb1dce"
+  ],
+  "chainids": [
+    1
+  ],
+  "window": [
+    "2023-03-12",
+    "2023-04-10"
+  ],
+  "eth_usd": 1673,
   "hops": 2
 }

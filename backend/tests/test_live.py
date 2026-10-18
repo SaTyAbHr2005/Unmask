@@ -37,7 +37,8 @@ def test_poll_once_normalizes_and_dedupes():
 
 
 def test_poll_once_token_transfer_uses_unique_id():
-    tok = {**ALCH, "asset": "USDT", "category": "erc20", "value": None, "uniqueId": "0xHASH:log:0x5"}
+    tok = {**ALCH, "asset": "USDT", "category": "erc20", "value": None, "uniqueId": "0xHASH:log:0x5",
+           "rawContract": {"address": "0xdAC17F958D2ee523a2206206994597C13D831ec7"}}
     out, _ = live.poll_once({"0xaa"}, 10, fake_rpc([tok]))
     assert (out[0].tx_hash, out[0].asset, out[0].amount) == ("0xhash:log:0x5", "USDT", 0.0)
 

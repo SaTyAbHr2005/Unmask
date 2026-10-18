@@ -14,7 +14,7 @@ from gt.analytics.funding import gas_funders
 from gt.analytics.graph import ATTACKER, build_graph, cluster_wallets, link_bridges
 from gt.chain.labels import load_labels
 from gt.chain.normalize import classify
-from gt.config import usd
+from gt.config import set_eth_usd, usd
 from gt.defense.alerts import queue
 from gt.defense.freeze import ExitPrediction, Holding, holdings, predict_exits
 from gt.defense.guards import find_decoys, prewarn
@@ -50,14 +50,20 @@ class Results:
 
 def load_case(conn, transfers: list[Transfer], posts: list[OsintPost], labels: dict[str, str],
               bytecodes: dict[str, str], truth: Truth | None = None, name: str = "",
-              seeds: list[str] | None = None) -> None:
-    """Replace whatever case is loaded with this one."""
+              seeds: list[str] | None = None, eth_usd: float | None = None,
+              complete: list[str] | None = None) -> None:
+    """Replace whatever case is loaded with this one. `eth_usd`: the ETH price on the hack date (None = demo price).
+    `complete`: for real traces, the wallets whose whole history was loaded (None = every wallet, as in the simulator)."""
+    set_eth_usd(eth_usd)
     db.clear(conn)
-    db.insert(conn, transfers)
+    # store each move's role (mixer_in, swap…): the simulator sets it, a real trace only knows "transfer",
+    # and the API reads the stored kinds (Beanstalk's Tornado deposits showed as $0 "in mixers")
+    every = {**load_labels(), **labels}
+    db.insert(conn, [dataclasses.replace(t, kind=classify(t, every)) for t in transfers])
     db.insert(conn, posts)
     db.insert(conn, [e for p in posts for e in extract(p)])
     db.put_meta(conn, "scenario", {
-        "name": name, "labels": labels, "bytecodes": bytecodes, "seeds": seeds or [],
+        "name": name, "labels": labels, "bytecodes": bytecodes, "seeds": seeds or [], "eth_usd": eth_usd, "complete": complete,
         "truth": json.loads(json.dumps(dataclasses.asdict(truth), default=sorted)) if truth else None})
     db.put_meta(conn, "results", None)
 
@@ -142,6 +148,7 @@ def _features(transfers: list[Transfer], wallets: set[str]) -> dict[str, dict]:
 
 def run(conn, seeds: set[str] | None = None) -> Results:
     meta = db.get_meta(conn, "scenario") or {}
+    set_eth_usd(meta.get("eth_usd"))
     labels = {**load_labels(), **meta.get("labels", {})}
     bytecodes = meta.get("bytecodes", {})
     transfers = [dataclasses.replace(t, kind=classify(t, labels)) for t in db.select(conn, Transfer)]
@@ -180,9 +187,17 @@ def run(conn, seeds: set[str] | None = None) -> Results:
     db.insert(conn, links)
 
     # where is the money, where is it going, what should a human approve
-    held = holdings(transfers, cluster0, labels)
+    # a balance is only real where the wallet's whole history was loaded; elsewhere the money was merely last seen
+    known = cluster0 if meta.get("complete") is None else cluster0 & set(meta["complete"])
+    held = holdings(transfers, known, labels)
+    # no theft seen: what the attacker's wallets still hold plus what they already sent into mixers and bridges or
+    # gave back (Beanstalk read "$0.1M traced" once its $74M profit was in Tornado; Euler returned $189M)
+    passed = sum((usd(t.asset, t.amount) or 0) * ((t.from_addr in cluster0 and (t.kind in ("mixer_in", "bridge_out")
+                                                                                or labels.get(t.to_addr) == "victim"))
+                                                  - (t.to_addr in cluster0 and t.kind in ("mixer_out", "bridge_in")))
+                 for t in transfers)
     stolen = sum(usd(t.asset, t.amount) or 0 for t in transfers
-                 if labels.get(t.from_addr) == "victim" and t.to_addr in cluster0) or sum(h.usd for h in held)
+                 if labels.get(t.from_addr) == "victim" and t.to_addr in cluster0) or sum(h.usd for h in held) + max(passed, 0)
     exits = predict_exits(G, seeds, labels, stolen)
     queue(conn, _alerts(exits, held, transfers, labels))
 

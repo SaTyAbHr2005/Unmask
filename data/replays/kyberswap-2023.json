@@ -1,0 +1,19 @@
+{
+  "name": "KyberSwap Elastic exploit (22 November 2023, ~$48M, multi-chain)",
+  "source": "https://rekt.news/kyberswap-rekt",
+  "seed_addresses": [
+    "0x50275e0b7261559ce1644014d4b78d4aa63be836",
+    "0xc9b826bad20872eb29f9b1d8af4befe8460b50c6"
+  ],
+  "chainids": [
+    1,
+    42161,
+    137
+  ],
+  "window": [
+    "2023-11-20",
+    "2023-12-20"
+  ],
+  "eth_usd": 2063,
+  "hops": 2
+}

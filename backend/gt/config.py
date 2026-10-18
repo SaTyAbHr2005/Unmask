@@ -17,10 +17,23 @@ STABLES = {"USDT", "USDC", "DAI"}
 ETH_LIKE = {"ETH", "WETH", "stETH", "wstETH"}   # ponytail: staked ETH priced as 1 ETH (wstETH is ~1.15); fine for triage
 
 
+_PRICE = {"ETH": ETH_USD}
+
+
+def set_eth_usd(price: float | None) -> None:
+    """The loaded case's ETH price: real hacks use the price on the hack date (Harmony 2022 was $1,145, not $3,000).
+    ponytail: one process-wide price because one case is loaded at a time; per-request pricing if that changes."""
+    _PRICE["ETH"] = price or ETH_USD
+
+
+def eth_usd() -> float:
+    return _PRICE["ETH"]
+
+
 def usd(asset: str, amount: float) -> float | None:
     """Fixed demo prices; None = unknown token price."""
     if asset in ETH_LIKE:
-        return amount * ETH_USD
+        return amount * _PRICE["ETH"]
     return amount if asset in STABLES else None
 
 

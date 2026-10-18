@@ -43,6 +43,21 @@ export function useCase() {
     guard("loading", refresh);
   }, [guard, refresh]);
 
+  // real chain data (a stored hack or any address): slow on first load, then cached
+  const traceReal = (load: () => Promise<{ transfers: number }>) =>
+    guard("loading", async () => {
+      setNote("Pulling the real transactions from Etherscan. A first trace can take a few minutes; after that it's cached.");
+      try {
+        const r = await load();
+        setNote(`Loaded ${r.transfers.toLocaleString()} real transfers. Running the analysis.`);
+        setEngine("reasoning");
+        await api.run();
+        await refresh();
+      } finally {
+        setNote("");
+      }
+    });
+
   return {
     data, engine, error, metrics, note, refresh,
     loadSimulation: (seed: number) =>
@@ -54,16 +69,8 @@ export function useCase() {
         await refresh();
         setNote("");
       }),
-    loadReplay: (id: string) =>
-      guard("loading", async () => {
-        setNote("Pulling the real transactions from Etherscan. The first load of a case can take a few minutes; after that it's cached.");
-        const r = await api.replay(id);
-        setNote(`Loaded ${r.transfers.toLocaleString()} real transfers. Running the analysis.`);
-        setEngine("reasoning");
-        await api.run();
-        await refresh();
-        setNote("");
-      }),
+    loadReplay: (id: string) => traceReal(() => api.replay(id)),
+    investigate: (body: Parameters<typeof api.investigate>[0]) => traceReal(() => api.investigate(body)),
     collectOsint: () =>
       guard("searching", async () => {
         const r = await api.collectOsint();

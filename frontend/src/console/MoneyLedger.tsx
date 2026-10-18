@@ -5,7 +5,8 @@ export default function MoneyLedger({ money }: { money: MoneyNow }) {
   const issuer = money.frozen_possible_usd - money.at_exchanges_usd;
   const unfreezable = Math.max(money.unspent_usd - issuer, 0);
   const t = money.timing;
-  const located = money.at_exchanges_usd + money.unspent_usd;
+  const returned = money.returned_usd ?? 0;
+  const located = money.at_exchanges_usd + money.unspent_usd + returned;
   return (
     <aside className="ledger" aria-labelledby="t-ledger">
       <h2 id="t-ledger" className="visually-hidden">Where the money is now</h2>
@@ -21,7 +22,14 @@ export default function MoneyLedger({ money }: { money: MoneyNow }) {
         <div><dt>Freezable by the issuer</dt><dd className="num">{usd(Math.max(issuer, 0))}</dd></div>
         <div><dt>Nobody can freeze</dt><dd className="num">{usd(unfreezable)}</dd></div>
         <div><dt>Still inside the mixer</dt><dd className="num">{usd(money.in_mixers_usd)}</dd></div>
+        {returned > 0 && <div><dt>Given back to the victim</dt><dd className="num">{usd(returned)}</dd></div>}
         <div className="muted-row"><dt>Located</dt><dd className="num">{money.total_usd ? pct(located / money.total_usd) : "—"}</dd></div>
+        {money.eth_usd != null && (
+          <div className="muted-row">
+            <dt>{money.eth_usd === 3000 ? "ETH priced (simulation) at" : "ETH priced on the hack date at"}</dt>
+            <dd className="num">{usd(money.eth_usd)}</dd>
+          </div>
+        )}
       </dl>
 
       <h3>The freeze window</h3>

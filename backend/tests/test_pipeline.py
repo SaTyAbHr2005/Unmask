@@ -117,3 +117,46 @@ def test_third_party_contracts_leave_the_attacker_cluster():
     contracts = {"0xmine", "0xsafe"}
     hubs = third_party_contracts(txs, {"0xatk"}, {}, lambda a: a in contracts)
     assert hubs == {"0xsafe": "contract"}
+
+
+@pytest.mark.parametrize("seed", [1, 23, 404, 2026])
+def test_every_attack_number_is_a_different_attacker_and_still_found(seed):
+    from gt.simulator import variant
+    v = variant(seed)
+    assert v["handles"]["forum"] != "ghostfox"
+    conn = db.connect("mongomock://")
+    load_scenario(conn, simulate(seed=seed, **v), name="x")
+    r = run(conn)
+    assert r.metrics["handle_correct"] and r.links[0].identity == f"forum:{v['handles']['forum']}"
+    assert r.metrics["precision"] >= 0.95 and r.metrics["recall"] >= 0.95
+    assert r.stolen_usd == pytest.approx(v["total_usd"])
+    assert r.utc_offsets["cluster:0"][0] in range(v["utc_offset"] - 1, v["utc_offset"] + 2)
+
+
+def test_money_only_counts_as_held_where_the_whole_history_was_loaded():
+    from gt.pipeline import load_case
+    T = lambda h, a, b, amt: Transfer(h, "eth", 1_000 + int(h), a, b, "ETH", amt)
+    txs = [T("1", "0xv", "0xs", 100.0), T("2", "0xs", "0xa", 60.0), T("3", "0xs", "0xb", 40.0)]
+    conn = db.connect("mongomock://")
+    # 0xb's onward transfers were never fetched: its 40 ETH is "last seen", not held
+    load_case(conn, txs, [], {"0xv": "victim"}, {}, None, "x", ["0xs"], 1000.0, ["0xs", "0xa"])
+    r = run(conn)
+    assert {h.address for h in r.holdings} == {"0xa"} and r.stolen_usd == 100_000
+
+
+def test_real_trace_moves_get_their_role_when_loaded():
+    from gt.pipeline import load_case
+    conn = db.connect("mongomock://")
+    load_case(conn, [Transfer("0x1", "eth", 1, "0xa", "0xtornado", "ETH", 5.0)], [], {"0xtornado": "mixer"}, {})
+    assert db.select(conn, Transfer)[0].kind == "mixer_in"     # a trace only knows "transfer"; the API reads this
+
+
+def test_traced_total_without_a_theft_counts_held_mixed_and_returned():
+    from gt.pipeline import load_case
+    conn = db.connect("mongomock://")
+    T = lambda i, a, b, eth: Transfer(f"0x{i}", "eth", i, a, b, "ETH", eth)
+    moves = [T(1, "0xsrc", "0xa", 100.0), T(2, "0xa", "0xmix", 60.0), T(3, "0xa", "0xeuler", 30.0)]
+    load_case(conn, moves, [], {"0xmix": "mixer", "0xeuler": "victim"}, {}, seeds=["0xa"], eth_usd=1000.0,
+              complete=["0xa"])
+    r = run(conn)
+    assert r.stolen_usd == pytest.approx(100_000)          # 10 held + 60 into the mixer + 30 given back, at $1,000

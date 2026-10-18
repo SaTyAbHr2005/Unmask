@@ -1,0 +1,17 @@
+{
+  "name": "Beanstalk governance attack (17 April 2022, ~$182M drained, ~$76M kept)",
+  "source": "https://rekt.news/beanstalk-rekt",
+  "seed_addresses": [
+    "0x1c5dcdd006ea78a7e4783f9e6021c32935a10fb4",
+    "0x79224bc0bf70ec34f0ef56ed8251619499a59def"
+  ],
+  "chainids": [
+    1
+  ],
+  "window": [
+    "2022-04-10",
+    "2022-05-15"
+  ],
+  "eth_usd": 2988,
+  "hops": 2
+}

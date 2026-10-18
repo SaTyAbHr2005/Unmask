@@ -86,6 +86,48 @@ export default function Console() {
         </div>
       </header>
 
+      <details className="trace-form">
+        <summary>Trace any address</summary>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            const addresses = String(f.get("addresses")).split(/[\s,]+/).filter(Boolean);
+            c.investigate({ addresses, start: String(f.get("start")), end: String(f.get("end")),
+                            chain: Number(f.get("chain")), hops: Number(f.get("hops")) });
+          }}
+        >
+          <p className="muted">
+            Paste the attacker's address from any public post-mortem, pick the dates around the hack, and Unmask traces the
+            money live from the blockchain. Up to 5 addresses and 120 days.
+          </p>
+          <label className="wide">
+            Attacker address(es)
+            <textarea name="addresses" required rows={2} spellCheck={false} placeholder="0x… (one per line)" />
+          </label>
+          <label>From <input type="date" name="start" required /></label>
+          <label>To <input type="date" name="end" required /></label>
+          <label>
+            Chain
+            <select name="chain" defaultValue="1">
+              {/* the chains Etherscan's free plan covers (Optimism, Base and BNB Chain need a paid key) */}
+              <option value="1">Ethereum</option>
+              <option value="42161">Arbitrum</option>
+              <option value="137">Polygon</option>
+            </select>
+          </label>
+          <label>
+            Follow the money
+            <select name="hops" defaultValue="2">
+              <option value="1">1 hop</option>
+              <option value="2">2 hops</option>
+              <option value="3">3 hops (slower)</option>
+            </select>
+          </label>
+          <button className="btn btn-primary" disabled={busy}>Trace</button>
+        </form>
+      </details>
+
       {c.note && <p className="note" aria-live="polite">{c.note}</p>}
       {c.error && <p className="error" role="alert">{c.error}</p>}
 
@@ -93,8 +135,9 @@ export default function Console() {
         <section className="empty-case">
           <h2>Nothing developed yet.</h2>
           <p>
-            Load the simulated attack to watch Unmask work end to end: $42 million split over 300 wallets, a mixer, a bridge,
-            decoys, and an attacker who can't stop posting. It takes about a second.
+            Load the simulated attack to watch Unmask work end to end: millions split over hundreds of wallets, a mixer,
+            a bridge, decoys, and an attacker who can't stop posting. Attack 7 is the one from the story; every other
+            number is a different attacker, with its own name, amount and time zone. It takes a few seconds.
           </p>
           <button className="btn btn-primary" disabled={busy} onClick={() => c.loadSimulation(seed)}>Load simulated attack</button>
           {replays.length > 0 && (

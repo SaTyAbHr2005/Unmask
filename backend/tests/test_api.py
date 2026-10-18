@@ -209,3 +209,40 @@ def test_matrix_keeps_quiet_hours_and_sankey_has_no_empty_routes(client):
     sk = client.get("/api/sankey").json()
     assert all(l["value"] > 0 for l in sk["links"]) and all(
         any(l["source"] == i or l["target"] == i for l in sk["links"]) for i in range(len(sk["nodes"])))
+
+
+def test_investigate_validates_and_keeps_the_case_when_nothing_is_found(client, monkeypatch):
+    ok = {"addresses": ["0x" + "ab" * 20], "start": "2023-03-12", "end": "2023-04-10"}
+    for bad in ({"addresses": ["0xnope"]}, {"addresses": []}, {"end": "2023-03-01"}, {"end": "2023-12-31"}, {"chain": 999}):
+        assert client.post("/api/investigate", json={**ok, **bad}).status_code == 422, bad
+    monkeypatch.setattr(api, "env", lambda k: None)
+    assert client.post("/api/investigate", json=ok).status_code == 400            # no Etherscan key
+    monkeypatch.setattr(api, "env", lambda k: "key")
+    before = client.get("/api/report").json()["case"]
+    monkeypatch.setattr(api, "trace", lambda cfg: ([], {}, set()))
+    assert client.post("/api/investigate", json=ok).status_code == 404
+    assert client.get("/api/report").json()["case"] == before                     # nothing replaced
+
+
+def test_investigate_traces_the_named_address(client, monkeypatch):
+    from gt.schema import Transfer
+    seen = {}
+    seed = "0x" + "ab" * 20
+
+    def fake_trace(cfg):
+        seen.update(cfg)
+        return [Transfer("0xt1", "eth", 1_680_000_000, seed, "0x" + "cd" * 20, "ETH", 50.0)], {}, {seed, "0x" + "cd" * 20}
+    monkeypatch.setattr(api, "env", lambda k: "key")
+    monkeypatch.setattr(api, "trace", fake_trace)
+    monkeypatch.setattr(api, "get_code", lambda a, chainid=1: "0x")
+    monkeypatch.setattr(api, "eth_usd_on", lambda day: 1500.0 if str(day) == "2023-03-12" else None)
+    r = client.post("/api/investigate", json={"addresses": [seed.upper().replace("0X", "0x")], "start": "2023-03-12",
+                                              "end": "2023-04-10", "chain": 42161, "hops": 1})
+    assert r.status_code == 200 and r.json()["transfers"] == 1
+    assert seen["chainids"] == [42161] and seen["window"] == ["2023-03-12", "2023-04-10"] and seen["hops"] == 1
+    client.post("/api/run")                                                          # as the website does
+    assert client.get("/api/report").json()["case"].startswith("Investigation: 0xabab")
+    m = client.get("/api/money-now").json()
+    assert m["eth_usd"] == 1500.0 and m["total_usd"] == pytest.approx(50 * 1500)   # priced on the trace's start date
+    client.post("/api/simulate", params={"seed": 7}); client.post("/api/run")     # leave the shared case as found
+    assert client.get("/api/money-now").json()["eth_usd"] == 3000.0                  # the simulator's demo price is back

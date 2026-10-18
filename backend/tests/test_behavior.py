@@ -24,6 +24,11 @@ def test_bot_score_needs_enough_data():
     assert bot_score([30.0] * 12, [1.23] * 5) is not None    # Benford part skipped below 20 amounts
 
 
+def test_bot_score_same_second_burst_is_finite():
+    s = bot_score([0.0] * 12, [1.23] * 12)    # a contract's batch, all in one block
+    assert s is not None and 0 <= s <= 1
+
+
 def test_timezone_from_waking_hours():
     rng = np.random.default_rng(3)
     day0 = 1_760_000_000 - 1_760_000_000 % 86400

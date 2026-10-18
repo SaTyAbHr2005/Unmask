@@ -80,8 +80,8 @@ def cluster_wallets(G: nx.MultiDiGraph, funders: dict[str, str], seeds: set[str]
     rest = nx.Graph()
     rest.add_nodes_from(n for n in G if n not in attacker and n not in hubs)
     for a, b, d in G.edges(data=True):
-        if a in rest and b in rest and a != b:
-            w = usd(d["asset"], d["amount"]) or 0.0
+        w = usd(d["asset"], d["amount"]) or 0.0
+        if a in rest and b in rest and a != b and w > 0:   # all-zero weights made Louvain divide by zero (real data)
             rest.add_edge(a, b, weight=rest.get_edge_data(a, b, {"weight": 0.0})["weight"] + w)
     comms = sorted(nx.community.louvain_communities(rest, weight="weight", seed=0), key=lambda c: (-len(c), min(c)))
 

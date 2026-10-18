@@ -32,6 +32,9 @@ NOISE_LINES = [
     "Interesting thread on MEV protection, worth reading.", "We have shipped v2 of the SDK. Feedback welcome!",
     "Could someone explain how the liquidation threshold works?", "Market looks sideways; I am mostly holding.",
 ]
+NAME_A = ["night", "void", "rust", "cold", "grey", "null", "iron", "dark", "frost", "zero", "lunar", "quiet", "static",
+          "ember", "neon"]
+NAME_B = ["owl", "cat", "wolf", "moth", "crow", "lynx", "viper", "raven", "hare", "mole", "wasp", "yak", "newt", "orca"]
 SYLLABLES = ["ka", "lo", "mi", "zen", "tor", "vi", "ra", "ne", "dus", "pe", "qu", "bri", "sol", "am", "jet",
              "won", "hex", "yur", "gal", "fen", "ok", "tuz", "bax", "ru", "sig", "dor", "ip", "wex", "cha", "mun"]
 
@@ -96,20 +99,38 @@ def _post(source: str, author: str, ts: int, text: str, url: str = "") -> OsintP
     return make_post(source, author, int(ts), text, url)
 
 
-def _noise_names(rng, n: int) -> list[str]:
+def _noise_names(rng, n: int, handles: dict[str, str]) -> list[str]:
     """Distinct-looking usernames, like real strangers (no two resemble each other or the attacker's handles)."""
     names: list[str] = []
     for _ in range(20_000):
         cand = "".join(rng.choice(SYLLABLES, size=int(rng.integers(2, 4))))
-        if all(username_similarity(cand, m) < NAME_GATE for m in names + list(HANDLES.values())):
+        if all(username_similarity(cand, m) < NAME_GATE for m in names + list(handles.values())):
             names.append(cand)
             if len(names) == n:
                 break
     return names
 
 
+def variant(seed: int) -> dict:
+    """What makes attack <seed> a different attacker on the website: name, amount, time zone, wallet count.
+    Seed 7 is the story's attack and stays as it is. Drawn from its own random stream, so the rest of the
+    scenario for a given seed doesn't shift."""
+    if seed == 7:
+        return {}
+    v = np.random.default_rng([seed, 2026])
+    a, b = str(v.choice(NAME_A)), str(v.choice(NAME_B))
+    leet = str.maketrans({"o": "0", "e": "3", "a": "4"})
+    return {"handles": {"forum": a + b, "github": (a + b).translate(leet), "telegram": f"{b}_{a}"},
+            "total_usd": round(float(v.uniform(8, 150)), 1) * 1e6,
+            "utc_offset": int(v.choice([-7, -5, -4, -3, 0, 1, 2, 3, 5, 7, 8, 9, 10])),
+            "n_split": int(v.integers(120, 401))}
+
+
 def simulate(seed: int = 7, n_split: int = 300, n_noise_wallets: int = 1500,
-             utc_offset: int = 9, t0: int = 1_760_000_000) -> Scenario:
+             utc_offset: int = 9, t0: int = 1_760_000_000, handles: dict[str, str] | None = None,
+             total_usd: float = 42_000_000) -> Scenario:
+    handles = handles or HANDLES
+    total_eth = total_usd / ETH_USD
     g = _Gen(seed, utc_offset, t0)
     rng = g.rng
 
@@ -135,13 +156,13 @@ def simulate(seed: int = 7, n_split: int = 300, n_noise_wallets: int = 1500,
         g.tx(g.step(300, 900), main, contract, 0.0, kind="test_call")
 
     # 2. Theft
-    g.tx(t0, victim, main, TOTAL_ETH)
+    g.tx(t0, victim, main, total_eth)
     g.clock = max(g.clock, float(t0))
-    msg = "0x" + b"contact ghostfox on forum for bounty".hex()
+    msg = "0x" + f"contact {handles['forum']} on forum for bounty".encode().hex()
     g.tx(g.step(), main, victim, 0.0, data=msg)
 
     # 3. Split: each child gets gas from a funder first, then its share
-    shares = rng.dirichlet([0.8] * n_split) * TOTAL_ETH
+    shares = rng.dirichlet([0.8] * n_split) * total_eth
     children = [g.addr() for _ in range(n_split)]
     for child, amt in zip(children, shares):
         g.tx(g.step(), f1 if rng.random() < 0.5 else f2, child, 0.01)
@@ -223,16 +244,16 @@ def simulate(seed: int = 7, n_split: int = 300, n_noise_wallets: int = 1500,
         ts = att_tx[k].ts - int(rng.uniform(120, 360))
         line = ATTACKER_LINES[int(rng.integers(0, len(ATTACKER_LINES)))]
         if j < 25:
-            posts.append(_post("forum", HANDLES["forum"], ts, line))
+            posts.append(_post("forum", handles["forum"], ts, line))
         elif j == 25:
-            posts.append(_post("forum", HANDLES["forum"], ts, f"lol ur fees r insane, test wallet {children[0]} fr"))
+            posts.append(_post("forum", handles["forum"], ts, f"lol ur fees r insane, test wallet {children[0]} fr"))
         else:
-            posts.append(_post("telegram", HANDLES["telegram"], ts, line))
+            posts.append(_post("telegram", handles["telegram"], ts, line))
     source = "\n".join(f"    function {s.split('(')[0]}({', '.join(f'{ty} a{i}' for i, ty in enumerate(filter(None, s[s.index('(') + 1:-1].split(','))))}) external {{}}"
                        for s in EXPLOIT_FUNCS)
-    posts.append(_post("github", HANDLES["github"], t0 - 3 * DAY,
-                       f"// lol ez money fr\ncontract Flash {{\n{source}\n}}", "https://github.example/gh0stfox/flash-tools"))
-    for name in _noise_names(rng, 60):
+    posts.append(_post("github", handles["github"], t0 - 3 * DAY,
+                       f"// lol ez money fr\ncontract Flash {{\n{source}\n}}", f"https://github.example/{handles['github']}/flash-tools"))
+    for name in _noise_names(rng, 60, handles):
         src = "forum" if rng.random() < 0.6 else "telegram"
         for ts in rng.uniform(t0 - DAY, t0 + 2 * DAY, size=int(rng.integers(3, 16))):
             posts.append(_post(src, name, int(ts), NOISE_LINES[int(rng.integers(0, len(NOISE_LINES)))]))
@@ -242,7 +263,7 @@ def simulate(seed: int = 7, n_split: int = 300, n_noise_wallets: int = 1500,
         posts=sorted(posts, key=lambda p: p.ts),
         labels=labels,
         bytecodes={contract: code},
-        truth=Truth(set(attacker), set(HANDLES.values()), set(decoys), {"Exch-A", "Exch-B"}, utc_offset),
+        truth=Truth(set(attacker), set(handles.values()), set(decoys), {"Exch-A", "Exch-B"}, utc_offset),
     )
 
 

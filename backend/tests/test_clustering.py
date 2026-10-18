@@ -63,3 +63,11 @@ def test_precision_holds_across_seeds():
     for seed in (6, 7, 8, 9, 10):
         s, _, pred = _attacker_cluster(seed)
         assert evaluate(pred, None, s.truth)["precision"] >= 0.95, seed
+
+
+def test_clustering_survives_only_zero_value_edges_outside_the_cluster():
+    from gt.analytics.funding import gas_funders
+    from gt.analytics.graph import build_graph, cluster_wallets
+    txs = [Transfer("1", "eth", 1, "0xs", "0xa", "ETH", 5.0), Transfer("2", "eth", 2, "0xx", "0xy", "ETH", 0.0)]
+    cl = cluster_wallets(build_graph(txs), gas_funders(txs), {"0xs"}, {})
+    assert cl["0xs"] == 0 and cl["0xx"] != 0

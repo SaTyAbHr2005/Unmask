@@ -21,7 +21,7 @@ export interface Timing {
 }
 export interface MoneyNow {
   total_usd: number; frozen_possible_usd: number; at_exchanges_usd: number; in_mixers_usd: number;
-  unspent_usd: number; exits: Exit[]; timing: Timing;
+  unspent_usd: number; returned_usd?: number; exits: Exit[]; timing: Timing; eth_usd?: number;
 }
 export interface GraphNode { id: string; label: string; cluster: number | null; kind: Kind; usd: number; bot_score: number | null }
 export interface GraphEdge { source: string; target: string; kind: string; usd: number; ts: number }
@@ -82,6 +82,8 @@ export const api = {
   simulate: (seed = 7) => post<{ transfers: number; posts: number }>(`/simulate?seed=${seed}`),
   replays: () => call<{ id: string; name: string; source: string }[]>("/replays"),
   replay: (id: string) => post<{ transfers: number; posts: number }>(`/replay/${encodeURIComponent(id)}`),
+  investigate: (body: { addresses: string[]; start: string; end: string; chain: number; hops: number }) =>
+    post<{ transfers: number; posts: number }>("/investigate", body),
   run: () => post<{ metrics: Metrics | null; links: number; alerts: number }>("/run"),
   collectOsint: () => post<{ rss: number; github: number; telegram: number; entities: number; total_posts: number }>("/osint/collect", {}),
   graph: (limit = 400) => call<Graph>(`/graph?cluster=0&limit=${limit}`),

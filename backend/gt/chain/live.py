@@ -5,7 +5,7 @@ import logging
 import httpx
 
 from gt import db
-from gt.chain.normalize import norm_addr, to_utc
+from gt.chain.normalize import norm_addr, to_utc, token_asset
 from gt.config import env
 from gt.schema import Transfer
 
@@ -27,7 +27,9 @@ def _rpc(method: str, params: list):
 def _to_transfer(a: dict) -> Transfer:
     tx_hash = norm_addr(a["hash"]) if a.get("category") in ("external", "internal") else norm_addr(a["uniqueId"])
     return Transfer(tx_hash, "eth", to_utc(a["metadata"]["blockTimestamp"]), norm_addr(a["from"]), norm_addr(a["to"]),
-                    a.get("asset") or "TOKEN", float(a.get("value") or 0.0))
+                    a.get("asset") or "ETH" if a.get("category") in ("external", "internal")
+                    else token_asset(a.get("asset"), (a.get("rawContract") or {}).get("address")),
+                    float(a.get("value") or 0.0))
 
 
 def poll_once(watch: set[str], last_block: int, rpc=None) -> tuple[list[Transfer], int]:

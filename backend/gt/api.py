@@ -5,6 +5,7 @@ import json
 import re
 import time
 from collections import defaultdict
+from datetime import date
 from typing import Annotated
 
 import mongomock
@@ -12,16 +13,17 @@ import numpy as np
 from fastapi import APIRouter, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints
 
 from gt import db
 from gt.analytics.behavior import infer_utc_offset
 from gt.analytics.features import activity_matrix, wallet_features
-from gt.chain.etherscan import CHAINS, get_code, load_replay
+from gt.chain.etherscan import CHAINS, get_code, trace
 from gt.chain.labels import load_labels
 from gt.chain.live import live_loop, pending_count
 from gt.chain.normalize import norm_addr
-from gt.config import DATA_DIR, GITHUB_QUERIES, RSS_FEEDS, TELEGRAM_CHANNELS, env, usd
+from gt.chain.prices import eth_usd_on
+from gt.config import DATA_DIR, GITHUB_QUERIES, RSS_FEEDS, TELEGRAM_CHANNELS, env, eth_usd, set_eth_usd, usd
 from gt.defense import alerts
 from gt.fusion.evidence import audit, head, verify_audit
 from gt.fusion import score
@@ -30,7 +32,7 @@ from gt.osint.extract import extract
 from gt.osint.style import resolve_identities
 from gt.pipeline import load_case, load_results, load_scenario, run, third_party_contracts
 from gt.schema import Alert, Link, OsintPost, Transfer
-from gt.simulator import simulate
+from gt.simulator import simulate, variant
 
 app = FastAPI(title="Unmask API", description="Quantitative OSINT + blockchain engine")
 app.add_middleware(CORSMiddleware, allow_methods=["*"], allow_headers=["*"],
@@ -40,11 +42,13 @@ STATE: dict = {"conn": None, "live_task": None}
 LIVE_QUEUE: asyncio.Queue = asyncio.Queue()
 CHAIN_IDS = {v: k for k, v in CHAINS.items()}
 Analyst = Annotated[str, Header(alias="X-Analyst")]   # ponytail: self-declared name, no auth — add login before real use
+Address = Annotated[str, StringConstraints(pattern=r"^0x[0-9a-fA-F]{40}$")]
 
 
 def conn():
     if STATE["conn"] is None:
         STATE["conn"] = db.connect()
+        set_eth_usd((db.get_meta(STATE["conn"], "scenario") or {}).get("eth_usd"))   # after a restart
     return STATE["conn"]
 
 
@@ -77,7 +81,7 @@ def health():
 
 @router.post("/simulate")
 def simulate_case(seed: Annotated[int, Query(ge=0, le=1_000_000)] = 7):
-    s = simulate(seed=seed)
+    s = simulate(seed=seed, **variant(seed))   # every number but 7 (the story's) is a different attacker
     load_scenario(conn(), s, name=f"Simulated attack (seed {seed})")
     return {"transfers": len(s.transfers), "posts": len(s.posts)}
 
@@ -99,14 +103,52 @@ def replay_case(name: str):
     path = DATA_DIR / "replays" / f"{name}.json"
     if not path.exists():
         raise HTTPException(404, f"no replay called {name}")
-    cfg = json.loads(path.read_text())
-    transfers, codes = load_replay(str(path))
+    return _load_trace(json.loads(path.read_text()), name)
+
+
+def _load_trace(cfg: dict, name: str) -> dict:
+    """Trace real money from cfg's seed addresses and make it the loaded case (shared by replays and investigations)."""
+    if not env("ETHERSCAN_API_KEY"):
+        raise HTTPException(400, "Tracing real transactions needs ETHERSCAN_API_KEY in backend/.env")
+    transfers, codes, complete = trace(cfg)
+    if not transfers:   # keep whatever case is loaded rather than replacing it with nothing
+        raise HTTPException(404, "No transactions with a known price for these addresses in that window. "
+                                 "Check the address, the chain and the dates.")
     seeds = {norm_addr(a) for a in cfg.get("seed_addresses", [])}
     chain_of = {a: CHAIN_IDS.get(t.chain, 1) for t in transfers for a in (t.from_addr, t.to_addr)}
-    labels = load_labels()
+    labels = {**load_labels(), **{norm_addr(a): "victim" for a in cfg.get("victims", [])}}   # lets theft be measured
     hubs = third_party_contracts(transfers, seeds, labels, lambda a: len(get_code(a, chain_of.get(a, 1))) > 2)
-    load_case(conn(), transfers, [], {**labels, **hubs}, codes, None, cfg.get("name", name), sorted(seeds))
-    return {"transfers": len(transfers), "posts": 0, "third_party_contracts": len(hubs)}
+    price = cfg.get("eth_usd") or (eth_usd_on(date.fromisoformat(cfg["window"][0])) if cfg.get("window") else None)
+    load_case(conn(), transfers, [], {**labels, **hubs}, codes, None, cfg.get("name", name), sorted(seeds), price,
+              sorted(complete))
+    return {"transfers": len(transfers), "posts": 0, "third_party_contracts": len(hubs), "eth_usd": eth_usd()}
+
+
+class Investigate(BaseModel):
+    addresses: Annotated[list[Address], Field(min_length=1, max_length=5)]
+    start: date
+    end: date
+    chain: int = 1
+    hops: Annotated[int, Field(ge=0, le=3)] = 2
+
+
+MAX_WINDOW_DAYS = 120   # each extra day can pull in more wallets: keep a live trace to a few minutes
+
+
+@router.post("/investigate")
+def investigate(body: Investigate):
+    """Trace any address the analyst (or a judge) names, the same way as a stored replay."""
+    if body.chain not in CHAINS:
+        raise HTTPException(422, f"chain must be one of {sorted(CHAINS)}")
+    if not 0 < (body.end - body.start).days <= MAX_WINDOW_DAYS:
+        raise HTTPException(422, f"the end date must be after the start date, at most {MAX_WINDOW_DAYS} days later")
+    first = norm_addr(body.addresses[0])
+    more = f" + {len(body.addresses) - 1} more" if len(body.addresses) > 1 else ""
+    chain = {1: "Ethereum", 42161: "Arbitrum", 137: "Polygon"}.get(body.chain, CHAINS[body.chain])
+    cfg = {"name": f"Investigation: {_short(first)}{more} on {chain}, {body.start} to {body.end}",
+           "seed_addresses": body.addresses, "chainids": [body.chain],
+           "window": [body.start.isoformat(), body.end.isoformat()], "hops": body.hops}
+    return _load_trace(cfg, "investigation")
 
 
 @router.post("/run")
@@ -220,6 +262,9 @@ def sankey():
     routes["Direct"] = max(res["stolen_usd"] - sum(routes.values()), 0.0)
     routes = {r: v for r, v in routes.items() if v > 0.001 * res["stolen_usd"]}   # no empty or rounding-crumb routes
     finals: dict[str, float] = defaultdict(float)
+    if (back := sum(_value(t) for t in db.select(conn(), Transfer)
+                    if t.from_addr in members and labels.get(t.to_addr) == "victim")):
+        finals["Returned to the victim"] = back
     for h in res["holdings"]:
         name = h["freezer"].removeprefix("exchange:") if h["freezer"].startswith("exchange:") else \
             "Held · freezable" if h["freezable"] else "Held · not freezable"
@@ -238,17 +283,19 @@ def money_now():
     res = _results()
     if not res:
         return {"total_usd": 0, "frozen_possible_usd": 0, "at_exchanges_usd": 0, "in_mixers_usd": 0,
-                "unspent_usd": 0, "exits": [], "timing": {}}
-    members, hs = _members(0), res["holdings"]
+                "unspent_usd": 0, "returned_usd": 0, "exits": [], "timing": {}}
+    members, hs, labels = _members(0), res["holdings"], _labels()
+    txs = db.select(conn(), Transfer)
     mixed = sum((_value(t) if t.from_addr in members and t.kind == "mixer_in" else 0)
-                - (_value(t) if t.to_addr in members and t.kind == "mixer_out" else 0)
-                for t in db.select(conn(), Transfer))
+                - (_value(t) if t.to_addr in members and t.kind == "mixer_out" else 0) for t in txs)
+    returned = sum(_value(t) for t in txs if t.from_addr in members and labels.get(t.to_addr) == "victim")
     return {"total_usd": res["stolen_usd"],
             "frozen_possible_usd": sum(h["usd"] for h in hs if h["freezable"]),
             "at_exchanges_usd": sum(h["usd"] for h in hs if h["freezer"].startswith("exchange:")),
             "in_mixers_usd": max(mixed, 0.0),
             "unspent_usd": sum(h["usd"] for h in hs if not h["freezer"].startswith("exchange:")),
-            "exits": res["exits"], "timing": res.get("timing", {})}
+            "returned_usd": returned,
+            "exits": res["exits"], "timing": res.get("timing", {}), "eth_usd": eth_usd()}
 
 
 # ── analyst decisions ───────────────────────────────────────────────────────────────────────────────
@@ -441,8 +488,6 @@ async def mempool():
 
 
 # ── live mode ───────────────────────────────────────────────────────────────────────────────────────
-
-Address = Annotated[str, StringConstraints(pattern=r"^0x[0-9a-fA-F]{40}$")]
 
 
 class LiveStart(BaseModel):
